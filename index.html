@@ -597,19 +597,30 @@ function mdToHtml(md){
   flush(); return out.join("");
 }
 // Perguntas: headings viram seção; itens de lista viram perguntas; sem lista, cada parágrafo é uma pergunta.
+/* Perguntas principais: títulos (#) viram seção; itens de lista no primeiro nível viram perguntas.
+   Itens indentados, numeração composta (1.1, 2.3) ou marcados como "refinamento:" ficam como
+   desdobramentos da pergunta acima: orientam a IA, mas não contam como pergunta. */
+const questionsOf = set => (set&&set.questionsMd) ? parseQuestions(set.questionsMd) : ((set&&set.questions)||[]);
 function parseQuestions(md){
   const lines=String(md||"").split(/\r?\n/);
-  const hasList=lines.some(l=>/^\s*([-*+]|\d+[.)])\s+/.test(l));
+  const hasList=lines.some(l=>/^\s*([-*+]|\d+(\.\d+)*[.)]?)\s+/.test(l));
   const qs=[]; let section=""; let cur=null;
+  const addSub=(txt)=>{ if(!cur) return; cur.subs=cur.subs||[]; cur.subs.push(txt.trim()); cur.note=cur.subs.join(" · "); };
   for(const raw of lines){
     const l=raw.replace(/\s+$/,"");
     if(!l.trim()){ cur=null; continue; }
     let m;
     if((m=l.match(/^\s*#{1,4}\s+(.*)/))){ section=m[1].trim(); cur=null; continue; }
-    if((m=l.match(/^\s*([-*+]|\d+[.)])\s+(.*)/))){ cur={id:"q"+(qs.length+1),section,text:m[2].trim(),note:""}; qs.push(cur); continue; }
-    if(hasList){ if(cur){ cur.note=(cur.note?cur.note+" ":"")+l.trim(); } continue; }
-    if(/^\s+/.test(l) && cur){ cur.text+=" "+l.trim(); continue; }
-    cur={id:"q"+(qs.length+1),section,text:l.trim(),note:""}; qs.push(cur);
+    const indent=(l.match(/^[ \t]*/)[0]||"").replace(/\t/g,"  ").length;
+    if((m=l.match(/^\s*(?:refinamento|desdobramento|complemento|sub)\s*[:\-–]\s*(.*)/i))){ addSub(m[1]); continue; }
+    if((m=l.match(/^\s*(\d+\.\d+(?:\.\d+)*)[.)]?\s+(.*)/))){ addSub(m[2]); continue; }
+    if((m=l.match(/^\s*([-*+]|\d+[.)])\s+(.*)/))){
+      if(indent>=2 && cur){ addSub(m[2]); continue; }
+      cur={id:"q"+(qs.length+1),section,text:m[2].trim(),note:"",subs:[]}; qs.push(cur); continue;
+    }
+    if(hasList){ if(cur){ if(indent>=2) addSub(l); else cur.text+=" "+l.trim(); } continue; }
+    if(indent>0 && cur){ cur.text+=" "+l.trim(); continue; }
+    cur={id:"q"+(qs.length+1),section,text:l.trim(),note:"",subs:[]}; qs.push(cur);
   }
   return qs;
 }
@@ -688,7 +699,7 @@ function renderList(wrap){
   if(!sets.length){ wrap.append(h("div",{class:"empty"},h("h3",null,"Nenhum conjunto cadastrado"),h("div",null,"Crie o primeiro conjunto de perguntas e compartilhe o link com a área de negócios."))); return; }
   const list=h("div",{class:"list"});
   for(const s of sets){
-    const q=(s.questions||[]).length;
+    const q=questionsOf(s).length;
     const it=h("div",{class:"item",onclick:()=>{S.editing=s;S.view="sessions";render();}},
       h("div",null, h("h4",null,s.title), h("div",{class:"meta"}, h("span",null,q+" pergunta"+(q!==1?"s":"")), h("span",null,(s.docIds||[]).length+" documento"+((s.docIds||[]).length!==1?"s":"")), h("span",null,fmtDate(s.createdAt)))),
       h("div",{class:"actions"},
@@ -704,7 +715,7 @@ function renderLanding(wrap){
   wrap.append(h("div",{class:"page-head"},h("div",null,h("div",{class:"eyebrow"},"Discovery Hub"),h("h1",{style:"margin-top:6px"},"Formulários disponíveis"),h("p",null,"Escolha o conjunto que você recebeu para responder. As perguntas aparecem em formato de conversa e são analisadas pela IA."))));
   if(!S.sets.length){ wrap.append(h("div",{class:"empty"},h("h3",null,"Nada para responder agora"))); return; }
   const list=h("div",{class:"list"});
-  for(const s of S.sets){ const q=(s.questions||[]).length;
+  for(const s of S.sets){ const q=questionsOf(s).length;
     list.append(h("div",{class:"item",onclick:()=>location.hash="#/r/"+s.id},h("div",null,h("div",{class:"eyebrow",style:"margin-bottom:4px"},MODULES[s.module]?.name||""),h("h4",null,s.title),h("div",{class:"meta"},h("span",null,q+" pergunta"+(q!==1?"s":"")),s.description?h("span",null,s.description):null)),h("div",{class:"actions"},h("button",{class:"btn sm"},"Responder"))));
   }
   wrap.append(list);
@@ -724,13 +735,13 @@ function openEditor(set){
 function renderEditor(wrap){
   const e=S.editing; const mod=MODULES[e.module];
   wrap.append(h("button",{class:"btn ghost sm",style:"margin:-8px 0 16px -12px",onclick:()=>{S.view="list";S.editing=null;render();}},h("span",{html:ICON.back}),"Voltar"));
-  wrap.append(h("div",{class:"page-head"},h("div",null,h("div",{class:"eyebrow"},mod.name),h("h1",{style:"margin-top:6px"},e.id?"Editar conjunto":"Novo conjunto"),h("p",null,"Escreva as perguntas em texto ou markdown. Títulos (#) agrupam em seções; cada item de lista vira uma pergunta. Documentos e contexto são enviados à IA para orientar a análise das respostas."))));
+  wrap.append(h("div",{class:"page-head"},h("div",null,h("div",{class:"eyebrow"},mod.name),h("h1",{style:"margin-top:6px"},e.id?"Editar conjunto":"Novo conjunto"),h("p",null,"Escreva as perguntas em texto ou markdown. Títulos (#) agrupam em seções; cada item de lista no primeiro nível vira uma pergunta. Itens indentados abaixo de uma pergunta (ou numerados 1.1, 1.2) são desdobramentos: orientam a IA no refinamento, mas não contam como pergunta. Documentos e contexto são enviados à IA para orientar a análise das respostas."))));
 
   const form=h("div",{class:"card accent"});
   const fTitle=h("input",{class:"input",value:e.title,placeholder:"Ex.: Discovery — Portal do cooperado v2",oninput:ev=>e.title=ev.target.value});
   const fDesc=h("textarea",{class:"input",rows:2,placeholder:"Uma frase sobre o tema e o que se espera das respostas.",oninput:ev=>e.description=ev.target.value},e.description);
   const fShort=h("input",{class:"input",value:e.shortName||"",placeholder:"ex.: portal-cooperado-v2",oninput:ev=>e.shortName=ev.target.value,onblur:ev=>{ ev.target.value=e.shortName=slugify(ev.target.value,""); }});
-  const fQ=h("textarea",{class:"input mono",rows:14,placeholder:"## Problema\n- Qual dor do cooperado esse tema resolve hoje?\n- Como medimos o problema atualmente?\n\n## Contexto\n- Quem são os stakeholders envolvidos?",oninput:ev=>{e.questionsMd=ev.target.value;updateQCount();}},e.questionsMd);
+  const fQ=h("textarea",{class:"input mono",rows:14,placeholder:"## Problema\n- Qual dor do cooperado esse tema resolve hoje?\n  - Quem sofre e com que frequência?\n  - Qual o custo atual dessa dor?\n- Como medimos o problema atualmente?\n\n## Contexto\n- Quem são os stakeholders envolvidos?",oninput:ev=>{e.questionsMd=ev.target.value;updateQCount();}},e.questionsMd);
   const qCount=h("div",{class:"hint"});
   const updateQCount=()=>{ const qs=parseQuestions(e.questionsMd); qCount.textContent=qs.length? qs.length+" pergunta"+(qs.length>1?"s":"")+" detectada"+(qs.length>1?"s":"") : "Nenhuma pergunta detectada ainda."; };
   updateQCount();
@@ -938,7 +949,7 @@ function renderSessions(wrap){
       const body=h("div",{class:"acc-body hidden"});
       const row=h("div",{class:"acc-row"+(rows.length?"":" no-sessions")},
         h("span",{class:"chev",html:ICON.chev}),
-        h("div",{class:"acc-main"},h("div",{class:"acc-title"},set.title),h("div",{class:"meta"},h("span",{class:"badge"},MODULES[set.module]?.short||set.module),h("span",null,(set.questions||[]).length+" pergunta"+((set.questions||[]).length!==1?"s":"")))),
+        h("div",{class:"acc-main"},h("div",{class:"acc-title"},set.title),h("div",{class:"meta"},h("span",{class:"badge"},MODULES[set.module]?.short||set.module),h("span",null,questionsOf(set).length+" pergunta"+(questionsOf(set).length!==1?"s":"")))),
         h("div",{class:"acc-col num"},h("b",null,rows.length),h("small",null,"sessões")),
         h("div",{class:"acc-col num"},h("b",null,nDone),h("small",null,"concluídas")),
         h("div",{class:"acc-col"},h("b",null,last?fmtDate(last.startedAt):"—"),h("small",null,"última resposta")),
@@ -955,7 +966,7 @@ function renderSessions(wrap){
           tbody.append(h("tr",{class:"click",onclick:()=>location.hash="#/s/"+set.id+"/"+r.id},
             h("td",null,r.respondent||"—"),h("td",null,r.area||"—"),h("td",{class:"small"},r.email||"—"),h("td",null,fmtDate(r.startedAt)),
             h("td",null,h("span",{class:"badge "+(r.status==="concluido"?"pos":"")},r.status==="concluido"?"Concluído":"Em andamento")),
-            h("td",{class:"num"},n+"/"+(set.questions||[]).length),h("td",{class:"num"},ref),h("td",{class:"num"},nf),
+            h("td",{class:"num"},n+"/"+questionsOf(set).length),h("td",{class:"num"},ref),h("td",{class:"num"},nf),
             h("td",null,h("span",{class:"small",style:"color:var(--accent)"},"Ver resumo →"))));
         }
         tb.append(tbody); body.append(h("div",{class:"acc-table"},tb));
@@ -1000,6 +1011,7 @@ function renderRespond(root,id){
     // retomar sessão local
     let sid=null; try{ sid=localStorage.getItem("dh:sess:"+id); }catch(e){}
     if(sid){ const sn=await S.db.doc("sessions/"+sid).get(); if(sn.exists) R.sess={id:sid,...sn.data()}; else R.sess=null; }
+    if(!R.sess || R.sess.status==="concluido") R.set.questions=questionsOf(R.set);
     page.innerHTML=""; renderTop(page,R.set,R.sess);
     const body=h("div",{class:"body"}); const w=h("div",{class:"wrap",id:"rw"}); body.append(w); page.append(body);
     if(!R.sess) renderIntro(w); else if(R.sess.status==="concluido") renderDashboard(w,R.set,R.sess,{}); else renderChat(w);
@@ -1133,7 +1145,7 @@ function appendTurn(t,save=true){
     const q=R.set.questions[t.qIndex];
     el=h("div",{class:"msg"},h("div",{class:"avatar"},h("img",{src:ASSETS.symbol,alt:""})),h("div",{class:"bubble"},
       h("div",{class:"qlabel"},h("span",null,"Pergunta "+(t.qIndex+1)+" de "+R.set.questions.length),q.section?h("span",{class:"badge"},q.section):null),
-      h("div",{class:"qtext"},q.text), q.note?h("div",{class:"small muted",style:"margin-top:6px"},q.note):null));
+      h("div",{class:"qtext"},q.text), (q.subs&&q.subs.length)?h("ul",{class:"small muted",style:"margin:8px 0 0;padding-left:18px"},...q.subs.map(x=>h("li",null,x))):(q.note?h("div",{class:"small muted",style:"margin-top:6px"},q.note):null)));
   } else if(t.kind==="eval"){
     el=h("div",{class:"msg"},h("div",{class:"avatar"},h("img",{src:ASSETS.symbol,alt:""})),h("div",{class:"bubble eval "+(t.followup?"bad":"good")},
       h("div",{style:"margin-bottom:6px"},t.followup?h("span",{class:"badge warn"},"Precisa de complemento"):h("span",{class:"badge pos"},"Registrada")),
@@ -1175,7 +1187,7 @@ function evalPrompt(q,answer,prev,files){
 set.context?`## Contexto fornecido pelo autor das perguntas\n${set.context}`:"",
 R.docs.length?`## Documentos de apoio (trechos)\n${docsContext()}`:"",
 hist?`## Respostas anteriores desta mesma pessoa (use para checar coerência; não reavalie)\n${hist}`:"",
-`## Pergunta ${q.section?`(seção: ${q.section})`:""}\n${q.text}${q.note?"\n"+q.note:""}`,
+`## Pergunta ${q.section?`(seção: ${q.section})`:""}\n${q.text}${(q.subs&&q.subs.length)?"\n\nDesdobramentos que uma resposta completa deveria cobrir (use para julgar suficiência e para formular o complemento; não são perguntas separadas):\n"+q.subs.map(x=>"- "+x).join("\n"):(q.note?"\n"+q.note:"")}`,
 prev?`## Primeira resposta\n${prev.answer}\n\n## Pergunta complementar feita\n${prev.followupQ}\n\n## Complemento respondido\n${answer}`:`## Resposta\n${answer}`,
 hasFiles?filesContext(files,"Arquivos anexados junto com esta resposta"):"",
 hasFiles&&files.some(f=>f.kind==="image")?`As imagens anexadas a esta resposta seguem junto nesta mensagem. Leia o que elas mostram e use como parte da resposta.`:"",
