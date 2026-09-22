@@ -280,6 +280,25 @@ table.data tr.click{cursor:pointer}table.data tr.click:hover td{background:var(-
 .finishing li.done .dot{background:var(--potencial);border-color:var(--potencial)}
 .finishing li.fail .dot{background:var(--warn);border-color:var(--warn)}
 .finishing li .note{margin-left:auto;font-size:12px;color:var(--muted);font-weight:400}
+.acc{display:grid;gap:10px}
+.acc-item{background:var(--card);border:1px solid var(--border);border-radius:10px;box-shadow:var(--shadow-sm);overflow:hidden}
+.acc-row{display:grid;grid-template-columns:28px minmax(220px,1.6fr) 90px 90px 150px auto;gap:12px 16px;align-items:center;padding:16px 18px;cursor:pointer;transition:background 120ms var(--ease)}
+.acc-row:hover{background:var(--card-soft)}
+.acc-row .chev{display:flex;color:var(--muted);transition:transform 160ms var(--ease)}
+.acc-row.open .chev{transform:rotate(90deg);color:var(--accent)}
+.acc-row.no-sessions .acc-title{color:var(--muted)}
+.acc-table table.data td:last-child,.acc-table table.data td:nth-child(4){white-space:nowrap}
+.acc-title{font-weight:600;color:var(--heading);font-size:15px}
+.acc-row .meta{font-size:12px;color:var(--muted);display:flex;gap:10px;align-items:center;margin-top:4px}
+.acc-col{display:flex;flex-direction:column;line-height:1.2}
+.acc-col b{font-family:var(--display);font-size:18px;color:var(--heading);font-weight:700}
+.acc-col small{font-size:11px;color:var(--muted)}
+.acc-col.num b{font-variant-numeric:tabular-nums}
+.acc-actions{justify-self:end}
+.acc-body{border-top:1px solid var(--border);background:var(--card-soft)}
+.acc-table{overflow-x:auto;padding:4px 8px 8px}
+.acc-table table.data td,.acc-table table.data th{padding:10px 12px}
+@media (max-width:900px){.acc-row{grid-template-columns:24px 1fr auto}.acc-col,.acc-actions{display:none}}
 .tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin:24px 0 20px}
 .tabs button{background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-1px;padding:10px 16px;font-weight:600;font-size:14px;color:var(--muted);cursor:pointer;transition:color 120ms var(--ease)}
 .tabs button:hover{color:var(--heading)}
@@ -507,10 +526,10 @@ const ASSETS = {
 };
 const MODULES = {
   dfq:{ key:"dfq", name:"Discovery Follow-up Questions", short:"Follow-up Questions",
-        desc:"Perguntas que a área de negócios precisa responder sobre um tema em discovery. Cada conjunto gera um link de resposta com análise da IA.",
+        desc:"Perguntas que a área de negócios precisa responder sobre um tema em discovery. Cada conjunto gera um link de resposta com acompanhamento da IA.",
         icon:'<svg viewBox="0 0 24 24"><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/><circle cx="12" cy="12" r="10"/></svg>' },
-  ctx:{ key:"ctx", name:"Context Briefing", short:"Context Briefing",
-        desc:"Qualificação de iniciativa antes do PRD. A área de negócios preenche o briefing; a IA avalia cada resposta e dá a nota final do brief.",
+  ctx:{ key:"ctx", name:"Context Brief", short:"Context Brief",
+        desc:"Qualificação de iniciativa antes do PRD. A área de negócios preenche o brief; a IA verifica cada resposta e pede complemento quando falta concretude.",
         icon:'<svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>' }
 };
 const ICON = {
@@ -528,6 +547,7 @@ const ICON = {
   upload:'<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></svg>',
   attach:'<svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>',
   clip:'<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>',
+  chev:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>',
   link:'<svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>'
 };
 const EMAIL_TO = "Produtech@nexenergy.com.br";
@@ -656,7 +676,6 @@ function renderSidebar(){
   nav.append(h("button",{class:S.view==="sessions"?"active":"",onclick:()=>{S.view="sessions";S.editing=null;render();}},
     h("span",{html:ICON.chart,title:"Respostas"}),h("span",{class:"lbl"},"Respostas")));
   side.append(nav);
-  side.append(h("div",{class:"foot"}, h("div",null,h("b",null,"Análise por IA: "),S.sample?"Gemini":"indisponível"), h("div",{style:"margin-top:4px"},"Respostas enviadas para ",h("b",null,EMAIL_TO))));
   return side;
 }
 function renderList(wrap){
@@ -671,7 +690,7 @@ function renderList(wrap){
   for(const s of sets){
     const q=(s.questions||[]).length;
     const it=h("div",{class:"item",onclick:()=>{S.editing=s;S.view="sessions";render();}},
-      h("div",null, h("h4",null,s.title), h("div",{class:"meta"}, h("span",null,q+" pergunta"+(q!==1?"s":"")), h("span",null,(s.docIds||[]).length+" documento"+((s.docIds||[]).length!==1?"s":"")), h("span",null,"Nota mínima "+fmtNum(s.minScore??7,1)), h("span",null,fmtDate(s.createdAt)))),
+      h("div",null, h("h4",null,s.title), h("div",{class:"meta"}, h("span",null,q+" pergunta"+(q!==1?"s":"")), h("span",null,(s.docIds||[]).length+" documento"+((s.docIds||[]).length!==1?"s":"")), h("span",null,fmtDate(s.createdAt)))),
       h("div",{class:"actions"},
         h("button",{class:"btn sm outline",onclick:e=>{e.stopPropagation();copyLink(s.id);}},h("span",{html:ICON.copy}),"Copiar link"),
         h("button",{class:"btn sm ghost",onclick:e=>{e.stopPropagation();location.hash="#/r/"+s.id;}},"Abrir"),
@@ -694,7 +713,7 @@ function copyLink(id){ const l=linkFor(id); navigator.clipboard?.writeText(l).th
 
 // ---------- EDITOR ----------
 function openEditor(set){
-  S.view="edit"; S.editing=set?{...set}:{module:S.module,title:"",description:"",questionsMd:"",context:"",minScore:7,docIds:[]};
+  S.view="edit"; S.editing=set?{...set}:{module:S.module,title:"",description:"",questionsMd:"",context:"",docIds:[]};
   S.editDocs=[]; render();
   if(set && set.docIds?.length && S.db){
     Promise.all(set.docIds.map(id=>S.db.doc("docs/"+id).get())).then(snaps=>{
@@ -710,7 +729,6 @@ function renderEditor(wrap){
   const form=h("div",{class:"card accent"});
   const fTitle=h("input",{class:"input",value:e.title,placeholder:"Ex.: Discovery — Portal do cooperado v2",oninput:ev=>e.title=ev.target.value});
   const fDesc=h("textarea",{class:"input",rows:2,placeholder:"Uma frase sobre o tema e o que se espera das respostas.",oninput:ev=>e.description=ev.target.value},e.description);
-  const fMin=h("input",{class:"input",type:"number",min:0,max:10,step:"0.5",value:e.minScore??7,oninput:ev=>e.minScore=parseFloat(ev.target.value)||0});
   const fShort=h("input",{class:"input",value:e.shortName||"",placeholder:"ex.: portal-cooperado-v2",oninput:ev=>e.shortName=ev.target.value,onblur:ev=>{ ev.target.value=e.shortName=slugify(ev.target.value,""); }});
   const fQ=h("textarea",{class:"input mono",rows:14,placeholder:"## Problema\n- Qual dor do cooperado esse tema resolve hoje?\n- Como medimos o problema atualmente?\n\n## Contexto\n- Quem são os stakeholders envolvidos?",oninput:ev=>{e.questionsMd=ev.target.value;updateQCount();}},e.questionsMd);
   const qCount=h("div",{class:"hint"});
@@ -719,15 +737,13 @@ function renderEditor(wrap){
   const fCtx=h("textarea",{class:"input",rows:6,placeholder:"O que motivou as perguntas, decisões já tomadas, restrições, glossário. Texto livre ou markdown.",oninput:ev=>e.context=ev.target.value},e.context);
 
   form.append(
-    h("div",{class:"row"},
-      h("label",{class:"field",style:"flex:3 1 320px"},h("span",null,"Título"),fTitle),
-      h("label",{class:"field",style:"flex:1 1 140px"},h("span",null,"Nota mínima (0–10)"),fMin,h("span",{class:"hint"},"Abaixo disso o conjunto não segue."))),
+    h("label",{class:"field"},h("span",null,"Título"),fTitle),
     h("label",{class:"field"},h("span",null,"Nome curto (pasta no Drive)"),fShort,h("span",{class:"hint"},"Só letras, números e hífen. Vazio usa o título. O markdown de cada resposta e os anexos vão para essa pasta no Drive.")),
     h("label",{class:"field"},h("span",null,"Descrição breve"),fDesc),
     h("label",{class:"field"},h("span",null,"Perguntas (texto ou markdown)"),fQ,qCount),
     h("label",{class:"field"},h("span",null,"Contexto"),fCtx),
     h("div",{class:"field"},h("span",{style:"display:block;font-size:13px;font-weight:600;color:var(--heading);margin-bottom:6px"},"Documentos de apoio (RAG)"),
-      h("div",{class:"hint",style:"margin-bottom:8px"},S.assets?"Aceita .md, .txt e .pdf. O texto é extraído e enviado à IA como contexto; o arquivo original fica anexado ao conjunto.":"Upload indisponível nesta visualização."),
+      h("div",{class:"hint",style:"margin-bottom:8px"},S.assets?"Aceita PDF, markdown, txt, csv, Word, Excel e imagens. O texto é extraído e vai à IA como contexto; imagens são descritas pela IA no momento do upload. O arquivo original fica anexado ao conjunto.":"Upload indisponível nesta visualização."),
       S.assets?renderDropzone():null, h("div",{id:"doclist",class:"docs"})));
 
   const saveBtn=h("button",{class:"btn",onclick:()=>saveSet(saveBtn)},"Salvar e gerar link");
@@ -742,10 +758,10 @@ function renderEditor(wrap){
   renderDocList();
 }
 function renderDropzone(){
-  const inp=h("input",{type:"file",multiple:true,accept:".md,.txt,.pdf,text/markdown,text/plain,application/pdf",onchange:ev=>{handleFiles(ev.target.files);ev.target.value="";}});
+  const inp=h("input",{type:"file",multiple:true,accept:".pdf,.md,.markdown,.txt,.csv,.tsv,.docx,.xlsx,.xlsm,.xls,image/*",onchange:ev=>{handleFiles(ev.target.files);ev.target.value="";}});
   const btn=h("button",{type:"button",class:"btn sm outline",onclick:ev=>{ev.preventDefault();ev.stopPropagation();inp.click();}},"Selecionar arquivos");
   const dz=h("div",{class:"dropzone",role:"button",tabindex:"0",onclick:ev=>{ if(ev.target!==btn) inp.click(); },onkeydown:ev=>{ if(ev.key==="Enter"||ev.key===" "){ev.preventDefault();inp.click();} }},
-    h("span",{class:"ico",html:ICON.upload}),h("div",{class:"t"},"Arraste os arquivos para aqui"),h("div",null,"ou"),btn,h("div",{class:"small"},".md, .txt ou .pdf"),inp);
+    h("span",{class:"ico",html:ICON.upload}),h("div",{class:"t"},"Arraste os arquivos para aqui"),h("div",null,"ou"),btn,h("div",{class:"small"},"PDF, markdown, txt, csv, Word, Excel ou imagem"),inp);
   ["dragenter","dragover"].forEach(t=>dz.addEventListener(t,ev=>{ev.preventDefault();ev.stopPropagation();dz.classList.add("over");}));
   ["dragleave","dragend"].forEach(t=>dz.addEventListener(t,ev=>{ev.preventDefault();dz.classList.remove("over");}));
   dz.addEventListener("drop",ev=>{ev.preventDefault();ev.stopPropagation();dz.classList.remove("over");handleFiles(ev.dataTransfer?.files);});
@@ -755,8 +771,8 @@ function renderDocList(){
   const el=$("#doclist"); if(!el) return; el.innerHTML="";
   for(const d of S.editDocs){
     el.append(h("div",{class:"doc"},h("span",{html:ICON.file,style:"color:var(--accent);display:flex"}),h("span",{class:"name"},d.name),
-      h("span",{class:"size"},d.pending?"extraindo…":(d.chars? (d.chars/1000).toFixed(1).replace(".",",")+" mil caracteres":"sem texto")),
-      d.assetId?h("a",{href:"/_blob/"+d.assetId,target:"_blank",class:"small"},"abrir"):null,
+      h("span",{class:"size"},d.pending?(d.kind==="image"?"descrevendo imagem…":"extraindo…"):(d.chars? (d.kind==="image"?"imagem descrita · ":"")+(d.chars/1000).toFixed(1).replace(".",",")+" mil caracteres":"sem texto")),
+      (d.url||d.assetId)?h("a",{href:d.url||("/_blob/"+d.assetId),target:"_blank",class:"small"},"abrir"):null,
       h("button",{title:"Remover",html:ICON.x,onclick:()=>{S.editDocs=S.editDocs.filter(x=>x!==d);renderDocList();}})));
   }
 }
@@ -835,13 +851,41 @@ async function extractText(file){
   }
   return (await file.text()).trim();
 }
+async function summarizeContext(set){
+  if(!S.sample||!(set.context||"").trim()) return "";
+  const prompt=`Você vai apresentar um formulário de discovery para uma pessoa da área de negócios. Reescreva o contexto abaixo como um único parágrafo em português do Brasil, com no máximo 5 frases curtas, na segunda pessoa, dizendo do que se trata, por que as respostas importam e o que se espera dela. Não exponha decisões internas, nomes de fornecedores, valores ou críticas que não ajudem quem responde. Sem título, sem lista, sem markdown.
+
+## Título
+${set.title}
+${set.description?"## Descrição\n"+set.description:""}
+
+## Contexto original
+${set.context}
+
+Responda SOMENTE com JSON: {"resumo": "parágrafo"}`;
+  try{ const r=await S.sample.json(prompt,{modelTier:"default",cache:false}); return String(r?.resumo||"").trim().slice(0,700); }catch(e){ console.warn("summary",e); return ""; }
+}
+async function describeImage(image,name){
+  if(!S.sample) return "";
+  const prompt=`Descreva em português do Brasil, com detalhe e sem inventar, o conteúdo desta imagem chamada "${name}". Ela será usada como material de apoio para avaliar respostas de discovery. Inclua textos legíveis, números, rótulos, estrutura (tabela, diagrama, tela, gráfico) e o que ela evidencia. Responda SOMENTE com JSON: {"descricao": "texto"}`;
+  try{ const r=await S.sample.json(prompt,{modelTier:"default",cache:false,images:[image]}); return String(r?.descricao||"").trim(); }catch(e){ console.warn("describe",e); return ""; }
+}
 async function handleFiles(files){
   for(const f of Array.from(files||[])){
-    const d={id:uid(),name:f.name,text:"",chars:0,assetId:null,pending:true,mime:f.type||""};
+    if(f.size>MAX_FILE_BYTES){ toast(f.name+": acima de 12 MB"); continue; }
+    const d={id:uid(),name:f.name,text:"",chars:0,assetId:null,url:null,pending:true,mime:f.type||"",kind:fileKind(f)};
     S.editDocs.push(d); renderDocList();
     try{
-      const [text,up]=await Promise.all([extractText(f).catch(e=>{console.warn(e);return "";}), S.assets?S.assets.upload(f).catch(e=>{console.warn("upload",e);return null;}):null]);
-      d.text=text.slice(0,120000); d.chars=d.text.length; d.assetId=up?.id||null;
+      const [att,up]=await Promise.all([
+        readAttachment(f).catch(e=>{console.warn(e);return null;}),
+        S.assets?S.assets.upload(f).catch(e=>{console.warn("upload",e);return null;}):null
+      ]);
+      if(att){
+        if(att.kind==="image"){ const desc=await describeImage(att.image,f.name); d.text=desc?`[Imagem: ${f.name}]\n${desc}`:""; }
+        else d.text=(att.text||"").slice(0,120000);
+      }
+      d.chars=d.text.length; d.assetId=up?.id||null; d.url=up?.url||null;
+      if(!d.text) toast(f.name+": não consegui extrair conteúdo; o arquivo fica anexado, mas não entra na análise");
     }catch(e){ console.warn(e); }
     d.pending=false; renderDocList();
   }
@@ -855,12 +899,16 @@ async function saveSet(btn){
   btn.disabled=true; btn.textContent="Salvando…";
   try{
     const id=e.id||uid(); const now=new Date().toISOString();
+    const ctx=(e.context||"").trim();
+    if(ctx && (ctx!==(e.contextSource||"") || !e.contextSummary)){ btn.textContent="Resumindo o contexto…"; e.contextSummary=await summarizeContext({title:e.title,description:e.description,context:ctx}); e.contextSource=ctx; }
+    if(!ctx){ e.contextSummary=""; e.contextSource=""; }
+    btn.textContent="Salvando…";
     for(const d of S.editDocs){
-      await S.db.doc("docs/"+d.id).set({setId:id,name:d.name,text:d.text,chars:d.chars,assetId:d.assetId,mime:d.mime,createdAt:d.createdAt||now});
+      await S.db.doc("docs/"+d.id).set({setId:id,name:d.name,text:d.text,chars:d.chars,assetId:d.assetId,url:d.url||null,kind:d.kind||"",mime:d.mime,createdAt:d.createdAt||now});
     }
     // remove docs que saíram da lista
     for(const oldId of (e.docIds||[])) if(!S.editDocs.some(d=>d.id===oldId)) await S.db.doc("docs/"+oldId).delete().catch(()=>{});
-    const body={module:e.module,title:e.title.trim(),shortName:slugify(e.shortName||e.title),description:(e.description||"").trim(),questionsMd:e.questionsMd,questions:qs,context:(e.context||"").trim(),minScore:Number(e.minScore??7),docIds:S.editDocs.map(d=>d.id),createdAt:e.createdAt||now,updatedAt:now};
+    const body={module:e.module,title:e.title.trim(),shortName:slugify(e.shortName||e.title),description:(e.description||"").trim(),questionsMd:e.questionsMd,questions:qs,context:(e.context||"").trim(),contextSummary:e.contextSummary||"",contextSource:e.contextSource||"",docIds:S.editDocs.map(d=>d.id),createdAt:e.createdAt||now,updatedAt:now};
     await S.db.doc("sets/"+id).set(body);
     S.editing={id,...body}; toast(e.id?"Conjunto atualizado":"Conjunto criado"); render();
   }catch(err){ console.error(err); toast(err.code==="quota_exceeded"?"Limite de armazenamento atingido":"Falha ao salvar: "+(err.code||err.message)); btn.disabled=false; btn.textContent="Salvar e gerar link"; }
@@ -872,34 +920,52 @@ async function deleteSet(e){
 
 // ---------- SESSIONS (admin) ----------
 function renderSessions(wrap){
-  const sets=S.sets; const sel=S.editing&&S.sets.find(s=>s.id===S.editing.id)||S.editing;
-  wrap.append(h("div",{class:"page-head"},h("div",null,h("div",{class:"eyebrow"},"Acompanhamento"),h("h1",{style:"margin-top:6px"},"Respostas"),h("p",null,"Sessões de resposta por conjunto, com nota da IA e acesso ao dashboard de cada uma."))));
-  if(!sets.length){ wrap.append(h("div",{class:"empty"},h("h3",null,"Sem conjuntos"),h("div",null,"Cadastre um conjunto para acompanhar respostas."))); return; }
-  const pick=h("select",{class:"input",style:"max-width:520px",onchange:ev=>{S.editing=S.sets.find(s=>s.id===ev.target.value);render();}});
-  pick.append(h("option",{value:""},"Selecione um conjunto…"));
-  for(const s of sets) pick.append(h("option",{value:s.id,selected:sel&&sel.id===s.id},MODULES[s.module]?.short+" — "+s.title));
-  wrap.append(h("div",{style:"margin-bottom:20px"},pick));
-  if(!sel) return;
+  wrap.append(h("div",{class:"page-head"},h("div",null,h("div",{class:"eyebrow"},"Acompanhamento"),h("h1",{style:"margin-top:6px"},"Respostas"),h("p",null,"Um bloco por conjunto. Expanda para ver quem respondeu e abrir o resumo de cada sessão."))));
+  if(!S.sets.length){ wrap.append(h("div",{class:"empty"},h("h3",null,"Sem conjuntos"),h("div",null,"Cadastre um conjunto para acompanhar respostas."))); return; }
   const holder=h("div",null,h("span",{class:"spinner"})); wrap.append(holder);
-  S.db.collection("sessions").where("setId","==",sel.id).get().then(snap=>{
-    const rows=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(b.startedAt).localeCompare(String(a.startedAt)));
+  S.db.collection("sessions").get().then(snap=>{
+    const all=snap.docs.map(d=>({id:d.id,...d.data()}));
+    const bySet={}; for(const r of all){ (bySet[r.setId]=bySet[r.setId]||[]).push(r); }
+    for(const k in bySet) bySet[k].sort((a,b)=>String(b.startedAt).localeCompare(String(a.startedAt)));
+    const done=all.filter(r=>r.status==="concluido").length;
+    const refined=all.reduce((n,r)=>n+(r.answers||[]).filter(a=>a&&a.followupQ).length,0);
     holder.innerHTML="";
-    const done=rows.filter(r=>r.status==="concluido");
-    const avg=done.length? done.reduce((a,r)=>a+(r.final?.nota??r.avgScore??0),0)/done.length : null;
-    holder.append(h("div",{class:"grid4",style:"margin-bottom:20px"},
-      stat("Sessões",rows.length,"dark"),stat("Concluídas",done.length,"dark"),stat("Nota média final",fmtNum(avg,1),avg==null?"dark":avg>=(sel.minScore??7)?"pos":"warn"),stat("Perguntas no conjunto",(sel.questions||[]).length,"dark")));
-    if(!rows.length){ holder.append(h("div",{class:"empty"},h("h3",null,"Ninguém respondeu ainda"),h("div",{class:"linkbox",style:"justify-content:center"},h("code",{style:"flex:0 1 auto"},linkFor(sel.id)),h("button",{class:"btn sm outline",onclick:()=>copyLink(sel.id)},"Copiar link")))); return; }
-    const tb=h("table",{class:"data"},h("thead",null,h("tr",null,h("th",null,"Respondente"),h("th",null,"Início"),h("th",null,"Status"),h("th",{class:"num"},"Respondidas"),h("th",{class:"num"},"Nota final"))));
-    const body=h("tbody");
-    for(const r of rows){
-      const n=(r.answers||[]).filter(a=>a.answer).length; const nota=r.final?.nota;
-      body.append(h("tr",{class:"click",onclick:()=>location.hash="#/s/"+sel.id+"/"+r.id},
-        h("td",null,r.respondent||"—"),h("td",null,fmtDate(r.startedAt)),
-        h("td",null,h("span",{class:"badge "+(r.status==="concluido"?"pos":"")},r.status==="concluido"?"Concluído":"Em andamento")),
-        h("td",{class:"num"},n+"/"+(sel.questions||[]).length),h("td",{class:"num"},nota!=null?fmtNum(nota,1):"–")));
+    holder.append(h("div",{class:"grid4",style:"margin-bottom:20px"},stat("Conjuntos",S.sets.length,"dark"),stat("Sessões",all.length,"dark"),stat("Concluídas",done,done&&done===all.length?"pos":"dark"),stat("Respostas refinadas",refined,"dark")));
+    const grid=h("div",{class:"acc"});
+    const openId=S.editing&&S.editing.id;
+    for(const set of S.sets){
+      const rows=bySet[set.id]||[]; const nDone=rows.filter(r=>r.status==="concluido").length; const last=rows[0];
+      const body=h("div",{class:"acc-body hidden"});
+      const row=h("div",{class:"acc-row"+(rows.length?"":" no-sessions")},
+        h("span",{class:"chev",html:ICON.chev}),
+        h("div",{class:"acc-main"},h("div",{class:"acc-title"},set.title),h("div",{class:"meta"},h("span",{class:"badge"},MODULES[set.module]?.short||set.module),h("span",null,(set.questions||[]).length+" pergunta"+((set.questions||[]).length!==1?"s":"")))),
+        h("div",{class:"acc-col num"},h("b",null,rows.length),h("small",null,"sessões")),
+        h("div",{class:"acc-col num"},h("b",null,nDone),h("small",null,"concluídas")),
+        h("div",{class:"acc-col"},h("b",null,last?fmtDate(last.startedAt):"—"),h("small",null,"última resposta")),
+        h("div",{class:"acc-actions"},h("button",{class:"btn sm outline",onclick:e=>{e.stopPropagation();copyLink(set.id);}},h("span",{html:ICON.copy}),"Copiar link")));
+      const toggle=()=>{ const open=body.classList.toggle("hidden"); row.classList.toggle("open",!open); };
+      row.addEventListener("click",toggle);
+      if(!rows.length) body.append(h("div",{class:"muted small",style:"padding:14px 18px 18px 46px"},"Ninguém respondeu ainda."));
+      else{
+        const tb=h("table",{class:"data"},h("thead",null,h("tr",null,h("th",null,"Respondente"),h("th",null,"Área"),h("th",null,"E-mail"),h("th",null,"Início"),h("th",null,"Status"),h("th",{class:"num"},"Respondidas"),h("th",{class:"num"},"Refinadas"),h("th",{class:"num"},"Anexos"),h("th",null,""))));
+        const tbody=h("tbody");
+        for(const r of rows){
+          const answers=(r.answers||[]).filter(Boolean);
+          const n=answers.filter(a=>a.answer).length, ref=answers.filter(a=>a.followupQ).length, nf=answers.reduce((k,a)=>k+(a.files||[]).length+(a.followupFiles||[]).length,0);
+          tbody.append(h("tr",{class:"click",onclick:()=>location.hash="#/s/"+set.id+"/"+r.id},
+            h("td",null,r.respondent||"—"),h("td",null,r.area||"—"),h("td",{class:"small"},r.email||"—"),h("td",null,fmtDate(r.startedAt)),
+            h("td",null,h("span",{class:"badge "+(r.status==="concluido"?"pos":"")},r.status==="concluido"?"Concluído":"Em andamento")),
+            h("td",{class:"num"},n+"/"+(set.questions||[]).length),h("td",{class:"num"},ref),h("td",{class:"num"},nf),
+            h("td",null,h("span",{class:"small",style:"color:var(--accent)"},"Ver resumo →"))));
+        }
+        tb.append(tbody); body.append(h("div",{class:"acc-table"},tb));
+      }
+      if(openId===set.id) toggle();
+      grid.append(h("div",{class:"acc-item"},row,body));
     }
-    tb.append(body); holder.append(h("div",{class:"card",style:"padding:8px 0"},tb));
-  }).catch(e=>{ holder.innerHTML=""; holder.append(h("div",{class:"callout warn"},"Não foi possível carregar as sessões.")); });
+    holder.append(grid);
+    S.editing=null;
+  }).catch(e=>{ holder.innerHTML=""; holder.append(h("div",{class:"callout warn"},"Não foi possível carregar as sessões: "+e.message)); });
 }
 function stat(lbl,val,cls,sub){ return h("div",{class:"stat"},h("div",{class:"lbl"},lbl),h("div",{class:"val "+(cls||"")},val),sub?h("div",{class:"sub"},sub):null); }
 
@@ -941,7 +1007,7 @@ function renderRespond(root,id){
   if(S.ready) go(); else { const t=setInterval(()=>{ if(S.ready){clearInterval(t);go();} },200); }
 }
 function renderTop(page,set,sess){
-  const n=(set.questions||[]).length; const done=sess?(sess.answers||[]).filter(a=>a.score!=null||a.answer).length:0;
+  const n=(set.questions||[]).length; const done=sess?(sess.answers||[]).filter(a=>a&&a.answer).length:0;
   const pct=n?Math.round(100*done/n):0;
   const top=h("div",{class:"top"},h("div",{class:"wrap"},
     h("img",{src:ASSETS.lockupLight,alt:"NX VERTEX"}),
@@ -953,18 +1019,22 @@ function renderTop(page,set,sess){
   page.append(top);
 }
 function updateTop(){
-  const n=(R.set.questions||[]).length; const done=(R.sess.answers||[]).filter(a=>a.score!=null||a.answer).length; const pct=n?Math.round(100*done/n):0;
+  const n=(R.set.questions||[]).length; const done=(R.sess.answers||[]).filter(a=>a&&a.answer).length; const pct=n?Math.round(100*done/n):0;
   const b=$("#topBar"); if(b) b.style.width=pct+"%"; const d=$("#topDone"); if(d) d.textContent=done; const p=$("#topPct"); if(p) p.textContent=pct+"%";
 }
 function renderIntro(w){
   const set=R.set; const qs=set.questions||[];
+  if(set.context&&!set.contextSummary&&S.sample){
+    summarizeContext(set).then(async sum=>{ if(!sum) return; set.contextSummary=sum; const el=$("#ctxSummary"); if(el) el.innerHTML=mdToHtml(sum);
+      try{ const {id,...body}=set; await S.db.doc("sets/"+id).set({...body,contextSummary:sum,contextSource:set.context}); }catch(e){ console.warn("persist summary",e); } });
+  }
   const fNome=h("input",{class:"input",placeholder:"Nome completo"});
   const fEmail=h("input",{class:"input",type:"email",placeholder:"nome@nexenergy.com.br"});
   const fArea=h("input",{class:"input",placeholder:"ex.: Comercial"});
   const card=h("div",{class:"card accent",style:"max-width:640px"},
     h("div",{class:"eyebrow"},"Antes de começar"),h("h2",{style:"margin-top:8px"},"Como funciona"),h("div",{class:"rule sm"}),
-    h("p",null,"As perguntas aparecem uma a uma, em formato de conversa. Você pode anexar arquivos a qualquer resposta pelo botão + : PDF, markdown, txt, csv, Word, Excel e imagens entram na análise. A cada resposta, a IA avalia a clareza e a completude e pode pedir um complemento. Ao final você recebe um resumo com a nota das respostas e pode baixar o consolidado em markdown."),
-    set.context?h("div",{class:"callout",style:"margin:16px 0",html:mdToHtml(set.context)}):null,
+    h("p",null,"As perguntas aparecem uma a uma, em formato de conversa. Você pode anexar arquivos a qualquer resposta pelo botão +: PDF, markdown, txt, csv, Word, Excel e imagens entram na análise. Quando uma resposta ficar vaga, a IA pede um complemento e dá um exemplo do que ajudaria. Ao final você vê um resumo e pode baixar o consolidado em markdown."),
+    (set.contextSummary||set.context)?h("div",{class:"callout",style:"margin:16px 0",id:"ctxSummary",html:set.contextSummary?mdToHtml(set.contextSummary):(S.sample?'<span class="muted small">Preparando o resumo do contexto…</span>':esc(set.description||""))}):null,
     R.docs.length?h("p",{class:"small muted"},"Documentos de apoio considerados pela IA: "+R.docs.map(d=>d.name).join(", ")):null,
     h("div",{class:"row",style:"margin-top:20px"},
       h("label",{class:"field",style:"flex:2 1 220px"},h("span",null,"Quem responde"),fNome),
@@ -1065,10 +1135,10 @@ function appendTurn(t,save=true){
       h("div",{class:"qlabel"},h("span",null,"Pergunta "+(t.qIndex+1)+" de "+R.set.questions.length),q.section?h("span",{class:"badge"},q.section):null),
       h("div",{class:"qtext"},q.text), q.note?h("div",{class:"small muted",style:"margin-top:6px"},q.note):null));
   } else if(t.kind==="eval"){
-    const cls=t.score==null?"":t.score>=7?"good":t.score<5?"bad":"";
-    el=h("div",{class:"msg"},h("div",{class:"avatar"},h("img",{src:ASSETS.symbol,alt:""})),h("div",{class:"bubble eval "+cls},
-      t.score!=null?h("div",{style:"display:flex;gap:12px;align-items:baseline;margin-bottom:6px"},h("span",{class:"score"},fmtNum(t.score,1),h("small",null,"/ 10")),t.followup?h("span",{class:"badge warn"},"Complemento solicitado"):h("span",{class:"badge pos"},"Registrada")):null,
-      h("div",{html:mdToHtml(t.text)})));
+    el=h("div",{class:"msg"},h("div",{class:"avatar"},h("img",{src:ASSETS.symbol,alt:""})),h("div",{class:"bubble eval "+(t.followup?"bad":"good")},
+      h("div",{style:"margin-bottom:6px"},t.followup?h("span",{class:"badge warn"},"Precisa de complemento"):h("span",{class:"badge pos"},"Registrada")),
+      h("div",{html:mdToHtml(t.text)}),
+      t.example?h("div",{class:"callout",style:"margin-top:10px"},h("div",{class:"eyebrow",style:"margin-bottom:4px"},"Exemplo do que ajudaria"),h("div",{html:mdToHtml(t.example)})):null));
   } else { el=h("div",{class:"msg"},h("div",{class:"avatar"},h("img",{src:ASSETS.symbol,alt:""})),h("div",{class:"bubble",html:mdToHtml(t.text)})); }
   chat.append(el);
   if(save){ R.sess.turns=[...(R.sess.turns||[]),t]; }
@@ -1100,7 +1170,7 @@ function evalPrompt(q,answer,prev,files){
   const set=R.set; const hist=historyContext(R.sess.current);
   const hasFiles=(files||[]).length>0;
   return [
-`Você é um analista de produto sênior avaliando a resposta de uma pessoa da área de negócios a uma pergunta de discovery. Responda SOMENTE com JSON.`,
+`Você é um analista de produto sênior acompanhando as respostas de uma pessoa da área de negócios a perguntas de discovery. Seu papel é garantir que cada resposta fique concreta o bastante para o time de produto agir, pedindo complemento com exemplos quando necessário. Responda SOMENTE com JSON.`,
 `## Tema\n${set.title}\n${set.description||""}`,
 set.context?`## Contexto fornecido pelo autor das perguntas\n${set.context}`:"",
 R.docs.length?`## Documentos de apoio (trechos)\n${docsContext()}`:"",
@@ -1109,17 +1179,16 @@ hist?`## Respostas anteriores desta mesma pessoa (use para checar coerência; n�
 prev?`## Primeira resposta\n${prev.answer}\n\n## Pergunta complementar feita\n${prev.followupQ}\n\n## Complemento respondido\n${answer}`:`## Resposta\n${answer}`,
 hasFiles?filesContext(files,"Arquivos anexados junto com esta resposta"):"",
 hasFiles&&files.some(f=>f.kind==="image")?`As imagens anexadas a esta resposta seguem junto nesta mensagem. Leia o que elas mostram e use como parte da resposta.`:"",
-`## Critérios
-- Concretude: dados, exemplos, nomes, números, prazos.
+`## O que decide se a resposta é suficiente
+- Concretude: dados, exemplos, nomes, números, prazos, em vez de adjetivos.
 - Completude: cobre o que a pergunta pede, sem desviar.
-- Coerência com o contexto e os documentos.
+- Coerência com o contexto, os documentos e as respostas anteriores.
 - Decidibilidade: um PM conseguiria agir com essa resposta?
-Nota de 0 a 10 (decimal permitido). 9–10 excelente; 7–8,9 boa; 5–6,9 parcial; abaixo de 5 insuficiente ou evasiva.
-${prev?"Esta é a avaliação final da pergunta: não peça novo complemento (pergunta_complementar deve ser null e aceita true).":"Se a resposta for vaga, incompleta ou não responder ao que foi perguntado (nota abaixo de 7), formule UMA pergunta complementar curta e objetiva e marque aceita=false. Caso contrário aceita=true e pergunta_complementar=null."}
-${hasFiles?"Os anexos fazem parte da resposta: considere o conteúdo deles ao avaliar concretude e completude, e diga na avaliação o que eles acrescentaram ou não.":""}
-Escreva a avaliação em português do Brasil, em até 3 frases, direta, sem elogios vazios. Aponte o que falta ou o que ficou forte.`,
+${prev?"Esta é a rodada final desta pergunta: registre o que veio, marque suficiente=true e não peça novo complemento (pergunta_complementar e exemplo devem ser null).":"Se a resposta for vaga, incompleta, evasiva ou não responder ao que foi perguntado, marque suficiente=false, formule UMA pergunta complementar curta e objetiva e dê um exemplo concreto do tipo de resposta que resolveria (com números ou situações plausíveis do contexto, deixando claro que é ilustrativo). Se for suficiente, suficiente=true, pergunta_complementar=null e exemplo=null."}
+${hasFiles?"Os anexos fazem parte da resposta: considere o conteúdo deles e diga no comentário o que eles acrescentaram ou não.":""}
+Escreva o comentário em português do Brasil, em até 3 frases, direto, sem elogios vazios e sem atribuir nota ou pontuação. Aponte o que ficou claro e o que falta.`,
 `## Formato de saída (apenas isto)
-{"nota": 7.5, "avaliacao": "texto curto", "aceita": true, "pergunta_complementar": null${hasFiles?', "anexos_resumo": "1 a 2 frases sobre o que os anexos mostram, para uso nas próximas perguntas"':""}}`
+{"suficiente": true, "comentario": "texto curto", "pergunta_complementar": null, "exemplo": null${hasFiles?', "anexos_resumo": "1 a 2 frases sobre o que os anexos mostram, para uso nas próximas perguntas"':""}}`
   ].filter(Boolean).join("\n\n");
 }
 async function handleAnswer(text){
@@ -1128,7 +1197,7 @@ async function handleAnswer(text){
   const files=R.pending.filter(a=>!a.busy&&!a.error); R.pending=[]; renderChips();
   const meta=files.map(a=>({name:a.name,kind:a.kind,bytes:a.bytes,chars:(a.text||"").length,url:a.url||null}));
   appendTurn({role:"user",text,files:meta});
-  let ans=R.sess.answers[i]; if(!ans){ ans={qid:q.id,question:q.text,section:q.section||"",answer:"",followupQ:null,followupA:null,score:null,feedback:"",files:[],followupFiles:[],filesText:"",filesSummary:""}; R.sess.answers[i]=ans; }
+  let ans=R.sess.answers[i]; if(!ans){ ans={qid:q.id,question:q.text,section:q.section||"",answer:"",followupQ:null,followupA:null,example:null,sufficient:null,feedback:"",files:[],followupFiles:[],filesText:"",filesSummary:""}; R.sess.answers[i]=ans; }
   const isFollow=!!R.sess.followup;
   if(isFollow){ ans.followupA=text; ans.followupFiles=meta; } else { ans.answer=text; ans.files=meta; }
   if(files.some(a=>a.text)) ans.filesText=((ans.filesText||"")+"\n\n"+filesContext(files,"Anexos")).trim().slice(0,60000);
@@ -1143,16 +1212,16 @@ async function handleAnswer(text){
     th.remove();
   }
   if(result && typeof result==="object"){
-    const nota=Math.max(0,Math.min(10,Number(result.nota)));
-    ans.score=isNaN(nota)?null:nota; ans.feedback=String(result.avaliacao||"");
+    ans.feedback=String(result.comentario||result.avaliacao||"");
     if(result.anexos_resumo) ans.filesSummary=String(result.anexos_resumo).slice(0,600);
-    const wantFollow=!isFollow && result.aceita===false && result.pergunta_complementar && String(result.pergunta_complementar).trim();
+    const insuf=result.suficiente===false||result.aceita===false;
+    const wantFollow=!isFollow && insuf && result.pergunta_complementar && String(result.pergunta_complementar).trim();
     if(wantFollow){
-      ans.followupQ=String(result.pergunta_complementar).trim(); R.sess.followup=true;
-      appendTurn({role:"ai",kind:"eval",score:ans.score,followup:true,text:ans.feedback+"\n\n**"+ans.followupQ+"**"});
+      ans.followupQ=String(result.pergunta_complementar).trim(); ans.example=result.exemplo?String(result.exemplo).trim():null; ans.sufficient=false; R.sess.followup=true;
+      appendTurn({role:"ai",kind:"eval",followup:true,text:ans.feedback+"\n\n**"+ans.followupQ+"**",example:ans.example});
     }else{
-      R.sess.followup=false; R.sess.current=i+1;
-      appendTurn({role:"ai",kind:"eval",score:ans.score,followup:false,text:ans.feedback});
+      ans.sufficient=isFollow?!insuf:true; R.sess.followup=false; R.sess.current=i+1;
+      appendTurn({role:"ai",kind:"eval",followup:false,text:ans.feedback});
     }
   }else{
     // sem IA: registra e avança
@@ -1170,7 +1239,7 @@ function finalPrompt(){
   const set=R.set; const lines=R.sess.answers.map((a,i)=>{
     const files=(a.files||[]).concat(a.followupFiles||[]);
     const fx=files.length?`\nAnexos: ${files.map(f=>f.name).join(", ")}${a.filesSummary?" — "+a.filesSummary:""}`:"";
-    return `### ${i+1}. ${a.question}\nResposta: ${a.answer}${a.followupQ?`\nComplemento pedido: ${a.followupQ}\nComplemento: ${a.followupA||"(não respondido)"}`:""}${fx}\nNota individual: ${a.score??"n/d"}\nAvaliação: ${a.feedback||""}`;
+    return `### ${i+1}. ${a.question}\nResposta: ${a.answer}${a.followupQ?`\nComplemento pedido: ${a.followupQ}\nComplemento: ${a.followupA||"(não respondido)"}`:""}${fx}\nSuficiente: ${a.sufficient===false?"não":"sim"}\nComentário: ${a.feedback||""}`;
   }).join("\n\n");
   return `Você é um analista de produto sênior consolidando um ${MODULES[set.module]?.name||"discovery"} respondido pela área de negócios. Responda SOMENTE com JSON.
 
@@ -1179,15 +1248,15 @@ ${set.title}
 ${set.description||""}
 ${set.context?"\n## Contexto\n"+set.context:""}
 
-## Perguntas, respostas e avaliações individuais
+## Perguntas, respostas e comentários individuais
 ${lines}
 
 ## Tarefa
-Dê uma nota geral de 0 a 10 para a qualidade do conjunto de respostas (não é média simples: pese completude do conjunto, consistência entre respostas e capacidade de sustentar uma decisão de produto). Nota mínima para seguir: ${set.minScore??7}.
+Consolide o que a área de negócios trouxe: o que ficou claro, o que ainda falta e qual o próximo passo para o time de produto. Não atribua nota nem pontuação. Pese completude do conjunto, consistência entre respostas e capacidade de sustentar uma decisão de produto.
 Escreva em português do Brasil, direto, sem elogios vazios.
 
 ## Formato de saída (apenas isto)
-{"nota": 7.8, "resumo": "2 a 4 frases sobre a qualidade geral e o que decide se segue ou não", "pontos_fortes": ["até 4 itens curtos"], "lacunas": ["até 5 itens curtos, o que falta para o time de produto agir"], "proximo_passo": "uma frase"}`;
+{"resumo": "2 a 4 frases curtas sobre o conjunto de respostas", "pontos_fortes": ["até 4 itens curtos"], "lacunas": ["até 5 itens curtos, o que falta para o time de produto agir"], "proximo_passo": "uma frase"}`;
 }
 const FINISH_STEPS=[
   {key:"ai",label:"Consolidando a análise final"},
@@ -1222,14 +1291,12 @@ async function finish(){
   // 1. análise final
   ui.set("ai","doing");
   if(S.sample && !R.sess.final){
-    try{ const r=await S.sample.json(finalPrompt(),{modelTier:"default",cache:false}); if(r&&typeof r==="object"){ const nota=Math.max(0,Math.min(10,Number(r.nota))); R.sess.final={nota:isNaN(nota)?null:nota,resumo:String(r.resumo||""),pontos_fortes:Array.isArray(r.pontos_fortes)?r.pontos_fortes.map(String):[],lacunas:Array.isArray(r.lacunas)?r.lacunas.map(String):[],proximo_passo:String(r.proximo_passo||"")}; } }catch(e){ console.warn("final",e); }
+    try{ const r=await S.sample.json(finalPrompt(),{modelTier:"default",cache:false}); if(r&&typeof r==="object"){ R.sess.final={resumo:String(r.resumo||""),pontos_fortes:Array.isArray(r.pontos_fortes)?r.pontos_fortes.map(String):[],lacunas:Array.isArray(r.lacunas)?r.lacunas.map(String):[],proximo_passo:String(r.proximo_passo||"")}; } }catch(e){ console.warn("final",e); }
   }
-  const scores=R.sess.answers.map(a=>a.score).filter(x=>x!=null);
-  R.sess.avgScore=scores.length?scores.reduce((a,b)=>a+b,0)/scores.length:null;
-  if(!R.sess.final) R.sess.final={nota:R.sess.avgScore,resumo:S.sample?"Consolidação por IA indisponível; a nota geral é a média das notas individuais.":"Sem análise por IA nesta visualização; a nota geral é a média das notas individuais, quando existirem.",pontos_fortes:[],lacunas:[],proximo_passo:""};
+  if(!R.sess.final) R.sess.final={resumo:S.sample?"Consolidação por IA indisponível nesta sessão.":"Sem análise por IA nesta visualização.",pontos_fortes:[],lacunas:[],proximo_passo:""};
   R.sess.status="concluido"; R.sess.finishedAt=new Date().toISOString();
   R.sess.markdown=buildMarkdown(R.set,R.sess);
-  ui.set("ai","done",R.sess.final?.nota!=null?"nota "+fmtNum(R.sess.final.nota,1):"");
+  ui.set("ai","done");
   await saveSess();
 
   await publishAndNotify(R.set,R.sess,ui);
@@ -1251,7 +1318,7 @@ async function publishAndNotify(set,sess,ui){
   ui?.set("md",pub.mdUrl?"done":"fail",files.length?files.length+" anexo"+(files.length!==1?"s":""):"sem anexos");
   ui?.set("drive",sess.folderUrl?"done":"fail",sess.folderUrl?"":"não gravado");
   const envio={title:set.title,description:set.description||"",respondent:sess.respondent||"",email:sess.email||"",area:sess.area||"",
-    finishedAt:sess.finishedAt,score:sess.final?.nota??null,minScore:set.minScore??7,summary:sess.final?.resumo||"",
+    finishedAt:sess.finishedAt,summary:sess.final?.resumo||"",
     folderUrl:sess.folderUrl,mdUrl:sess.mdUrl,mdName:pub.mdName||"respostas.md",bundleUrl:sess.bundleUrl,bundleName:pub.bundleName||"anexos.zip",attachedZip:!!sess.bundleUrl};
   ui?.set("mail","doing");
   try{ await window.dhSendMail(envio); sess.mailed=true; sess.mailError=""; }
@@ -1265,7 +1332,7 @@ async function publishAndNotify(set,sess,ui){
 function buildMarkdown(set,sess){
   const mod=MODULES[set.module]?.name||"Discovery";
   const L=[];
-  L.push(`# ${set.title}`,``,`**Módulo:** ${mod}  `,`**Respondente:** ${sess.respondent||"não informado"}${sess.area?" — "+sess.area:""}  `,sess.email?`**E-mail:** ${sess.email}  `:"",`**Início:** ${fmtDate(sess.startedAt)}  `,`**Conclusão:** ${sess.finishedAt?fmtDate(sess.finishedAt):"—"}  `,`**Nota geral:** ${sess.final?.nota!=null?fmtNum(sess.final.nota,1):"n/d"} / 10 (mínimo ${fmtNum(set.minScore??7,1)}) — ${sess.final?.nota!=null?(sess.final.nota>=(set.minScore??7)?"APTO A SEGUIR":"NÃO SEGUE"):"sem avaliação"}`,``);
+  L.push(`# ${set.title}`,``,`**Módulo:** ${mod}  `,`**Respondente:** ${sess.respondent||"não informado"}${sess.area?" — "+sess.area:""}  `,sess.email?`**E-mail:** ${sess.email}  `:"",`**Início:** ${fmtDate(sess.startedAt)}  `,`**Conclusão:** ${sess.finishedAt?fmtDate(sess.finishedAt):"—"}  `,``);
   if(set.description) L.push(`> ${set.description}`,``);
   if(sess.final?.resumo) L.push(`## Análise geral`,``,sess.final.resumo,``);
   if(sess.final?.pontos_fortes?.length) L.push(`**Pontos fortes**`,...sess.final.pontos_fortes.map(p=>`- ${p}`),``);
@@ -1279,8 +1346,7 @@ function buildMarkdown(set,sess){
     if(a.followupQ){ L.push(`_Complemento solicitado:_ ${a.followupQ}`,``,a.followupA||"_(não respondido)_",``); }
     const _f=(a.files||[]).concat(a.followupFiles||[]);
     if(_f.length){ L.push(`_Anexos:_ ${_f.map(f=>f.name).join(", ")}`,``); if(a.filesSummary) L.push(`_O que os anexos mostram:_ ${a.filesSummary}`,``); }
-    L.push(`- Nota: ${a.score!=null?fmtNum(a.score,1):"n/d"} / 10`);
-    if(a.feedback) L.push(`- Avaliação: ${a.feedback}`);
+    if(a.feedback) L.push(`- Comentário: ${a.feedback}`);
     L.push(``);
   });
   if(set.context) L.push(`## Contexto fornecido`,``,set.context,``);
@@ -1288,15 +1354,12 @@ function buildMarkdown(set,sess){
   return L.join("\n");
 }
 function renderDashboard(w,set,sess,opts){
-  const qs=set.questions||[]; const answers=sess.answers||[];
-  const scores=answers.map(a=>a.score).filter(x=>x!=null);
-  const avg=scores.length?scores.reduce((a,b)=>a+b,0)/scores.length:null;
-  const nota=sess.final?.nota; const min=set.minScore??7;
-  const apto=nota!=null?nota>=min:null;
+  const qs=set.questions||[]; const answers=(sess.answers||[]).filter(Boolean);
   const answered=answers.filter(a=>a.answer).length;
+  const refined=answers.filter(a=>a.followupQ).length;
+  const nFiles=answers.reduce((n,a)=>n+(a.files||[]).length+(a.followupFiles||[]).length,0);
   const head=h("div",{class:"page-head",style:"margin-bottom:20px"},h("div",null,h("div",{class:"eyebrow"},"Resultado"),h("h2",{style:"margin-top:6px"},sess.status==="concluido"?"Formulário concluído":"Sessão em andamento"),h("p",null,[sess.respondent,sess.area,sess.email].filter(Boolean).concat([fmtDate(sess.startedAt)]).join(" · "))),
-    h("div",{style:"display:flex;flex-direction:column;align-items:flex-end;gap:12px"},
-      apto!=null?h("span",{class:"badge "+(apto?"pos":"danger")},apto?"Apto a seguir":"Não segue — abaixo de "+fmtNum(min,1)):null));
+    h("span",{class:"badge "+(sess.status==="concluido"?"pos":"")},sess.status==="concluido"?"Concluído":"Em andamento"));
   w.append(head);
   // ações
   const md=sess.markdown||buildMarkdown(set,sess);
@@ -1325,13 +1388,9 @@ function renderDashboard(w,set,sess,opts){
   // dashboard
   panes.dash.append(h("div",{class:"grid4"},
     stat("Perguntas",qs.length,"dark"),
-    stat("Respondidas",answered,"dark",answers.filter(a=>a.followupQ).length+" com complemento"),
-    stat("Média por pergunta",fmtNum(avg,1),avg==null?"dark":avg>=min?"pos":"warn","de 10"),
-    stat("Nota geral (IA)",fmtNum(nota,1),nota==null?"dark":nota>=min?"pos":"warn","mínimo "+fmtNum(min,1))));
-  const card=h("div",{class:"card",style:"margin-top:16px"});
-  card.append(h("div",{class:"eyebrow"},"Qualidade por pergunta"),h("h4",{style:"margin:6px 0 14px"},"Nota de 0 a 10 atribuída pela IA a cada resposta"));
-  card.append(barChart(answers,qs.length,min));
-  panes.dash.append(card);
+    stat("Respondidas",answered,answered>=qs.length?"pos":"dark"),
+    stat("Refinadas",refined,"dark",refined?"pediram complemento":"nenhum complemento"),
+    stat("Anexos",nFiles,"dark")));
   if(sess.final&&(sess.final.resumo||sess.final.lacunas?.length)){
     const c=h("div",{class:"card accent",style:"margin-top:16px"});
     c.append(h("div",{class:"eyebrow"},"Análise geral"),h("div",{class:"rule sm"}),h("p",null,sess.final.resumo));
@@ -1346,29 +1405,14 @@ function renderDashboard(w,set,sess,opts){
   const list=h("div",{class:"card"});
   list.append(h("div",{class:"eyebrow"},"Respostas"),h("h4",{style:"margin:6px 0 8px"},"Detalhe por pergunta"));
   answers.forEach((a,i)=>{
-    list.append(h("div",{class:"qa"},h("div",{class:"q"},h("span",null,(i+1)+". "+a.question),a.score!=null?h("span",{class:"score",style:"flex:none"},fmtNum(a.score,1),h("small",null,"/10")):null),
+    list.append(h("div",{class:"qa"},h("div",{class:"q"},h("span",null,(i+1)+". "+a.question),a.followupQ?h("span",{class:"badge warn",style:"flex:none"},"Refinada"):null),
       h("div",{class:"a"},a.answer||"—"),
-      a.followupQ?h("div",{class:"a",style:"margin-top:4px"},h("span",{class:"small muted"},"Complemento: "+a.followupQ),"\n",a.followupA||"—"):null,
+      a.followupQ?h("div",{class:"a",style:"margin-top:4px"},h("span",{class:"small muted"},"Complemento pedido: "+a.followupQ),"\n",a.followupA||"—"):null,
       (a.files||[]).concat(a.followupFiles||[]).length?h("div",{class:"small muted",style:"margin-top:6px"},"Anexos: "+(a.files||[]).concat(a.followupFiles||[]).map(f=>f.name).join(", ")+(a.filesSummary?" — "+a.filesSummary:"")):null,
       a.feedback?h("div",{class:"f"},a.feedback):null));
   });
   if(!answers.length) list.append(h("div",{class:"muted small"},"Nenhuma resposta registrada."));
   panes.detail.append(list);
-}
-function barChart(answers,n,min){
-  const W=720,H=200,pl=32,pb=28,pt=12; const bw=Math.min(48,(W-pl-16)/Math.max(1,n)-8); const gap=(W-pl-16)/Math.max(1,n);
-  const y=v=>pt+(H-pt-pb)*(1-v/10);
-  let s=`<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Notas por pergunta"><defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="0"><stop offset="0" stop-color="#0094ff"/><stop offset="1" stop-color="#00ce7e"/></linearGradient></defs>`;
-  for(const v of [0,5,10]) s+=`<line x1="${pl}" x2="${W-8}" y1="${y(v)}" y2="${y(v)}" stroke="var(--border)" stroke-width="1"/><text x="${pl-8}" y="${y(v)+4}" text-anchor="end">${v}</text>`;
-  s+=`<line x1="${pl}" x2="${W-8}" y1="${y(min)}" y2="${y(min)}" stroke="var(--warn)" stroke-dasharray="4 4" stroke-width="1"/><text x="${W-8}" y="${y(min)-4}" text-anchor="end" fill="var(--warn)">mínimo ${fmtNum(min,1)}</text>`;
-  for(let i=0;i<n;i++){
-    const a=answers[i]; const x=pl+8+i*gap+(gap-bw)/2;
-    if(a&&a.score!=null){ const hh=Math.max(2,y(0)-y(a.score)); s+=`<rect x="${x}" y="${y(a.score)}" width="${bw}" height="${hh}" rx="3" fill="url(#g)"/><text class="val" x="${x+bw/2}" y="${y(a.score)-6}" text-anchor="middle">${fmtNum(a.score,1)}</text>`; }
-    else { s+=`<rect x="${x}" y="${y(0)-2}" width="${bw}" height="2" rx="1" fill="var(--border-strong)"/>`; }
-    s+=`<text x="${x+bw/2}" y="${H-8}" text-anchor="middle">${i+1}</text>`;
-  }
-  s+=`</svg>`;
-  const d=document.createElement("div"); d.innerHTML=s; return d.firstChild;
 }
 
 boot();
