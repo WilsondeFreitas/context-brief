@@ -411,6 +411,13 @@ table.data tr.click{cursor:pointer}table.data tr.click:hover td{background:var(-
       body: JSON.stringify(payload),
     });
 
+  window.dhSendChat = (payload) =>
+    jsonFetch("/api/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
   /* ---------- barra de acesso administrativo ---------- */
   const isAdminRoute = () => !/^#\/(r|s)\//.test(location.hash || "#/");
 
@@ -1134,7 +1141,7 @@ async function finish(){
   const comp=$("#composer"); if(comp) comp.remove();
   const chat=$("#chat");
   if(S.sample && !R.sess.final){
-    const th=h("div",{class:"msg"},h("div",{class:"avatar"},h("img",{src:ASSETS.symbol,alt:""})),h("div",{class:"bubble"},h("span",{class:"thinking"},"Consolidando análise final ",h("i"),h("i"),h("i")))); chat?.append(th); scrollEnd();
+    const th=h("div",{class:"msg"},h("div",{class:"avatar"},h("img",{src:ASSETS.symbol,alt:""})),h("div",{class:"bubble"},h("span",{class:"thinking"},"Consolidando análise final e notificando o time ",h("i"),h("i"),h("i")))); chat?.append(th); scrollEnd();
     try{ const r=await S.sample.json(finalPrompt(),{modelTier:"default",cache:false}); if(r&&typeof r==="object"){ const nota=Math.max(0,Math.min(10,Number(r.nota))); R.sess.final={nota:isNaN(nota)?null:nota,resumo:String(r.resumo||""),pontos_fortes:Array.isArray(r.pontos_fortes)?r.pontos_fortes.map(String):[],lacunas:Array.isArray(r.lacunas)?r.lacunas.map(String):[],proximo_passo:String(r.proximo_passo||"")}; } }catch(e){ console.warn("final",e); }
     th.remove();
   }
@@ -1144,6 +1151,7 @@ async function finish(){
   R.sess.status="concluido"; R.sess.finishedAt=new Date().toISOString();
   R.sess.markdown=buildMarkdown(R.set,R.sess);
   try{ await window.dhSendMail({subject:R.set.title+" — "+(R.sess.respondent||"resposta"),markdown:R.sess.markdown}); R.sess.mailed=true; }catch(e){ console.warn("mail",e); R.sess.mailed=false; }
+  try{ await window.dhSendChat({title:R.set.title,respondent:R.sess.respondent||"",finishedAt:R.sess.finishedAt,score:R.sess.final?.nota??null,minScore:R.set.minScore??7,markdown:R.sess.markdown}); R.sess.chatSent=true; }catch(e){ console.warn("chat",e); R.sess.chatSent=false; R.sess.chatError=String(e.message||e); }
   await saveSess(); updateTop();
   try{ localStorage.removeItem("dh:sess:"+R.set.id); }catch(e){}
   w.innerHTML=""; renderDashboard(w,R.set,R.sess,{});
@@ -1192,7 +1200,12 @@ function renderDashboard(w,set,sess,opts){
   const acts=h("div",{class:"actions-bar"});
   if(!opts.readonly) acts.append(h("button",{class:"btn outline",onclick:()=>{ try{localStorage.removeItem("dh:sess:"+set.id);}catch(e){} R.sess=null; R.pending=[]; const wr=$("#rw"); wr.innerHTML=""; renderIntro(wr); }},"Nova resposta"));
   acts.append(h("button",{class:"btn secondary",disabled:!S.downloads,title:S.downloads?"Baixar o consolidado em markdown":"Download indisponível nesta visualização",onclick:async ev=>{ const b=ev.currentTarget; b.disabled=true; try{ await S.downloads.save({filename:fname,data:md}); toast("Respostas salvas"); }catch(e){ if(e.code!=="declined") toast("Não foi possível salvar ("+(e.code||"erro")+")"); } b.disabled=false; }},h("span",{html:ICON.download}),"Baixar respostas"));
-  acts.append(h("button",{class:"btn",title:"Enviar o consolidado para "+EMAIL_TO,onclick:async ev=>{ const b=ev.currentTarget; b.disabled=true; try{ await window.dhSendMail({subject:set.title+" — "+(sess.respondent||"resposta"),markdown:md}); toast("Respostas enviadas para "+EMAIL_TO); }catch(e){ toast("Falha no envio ("+(e.code||e.message||"erro")+")"); b.disabled=false; } }},h("span",{html:ICON.mail}),"Enviar respostas"));
+  acts.append(h("button",{class:"btn",title:"Enviar o consolidado para "+EMAIL_TO+" e para o Google Chat",onclick:async ev=>{ const b=ev.currentTarget; b.disabled=true;
+    const falhas=[];
+    try{ await window.dhSendMail({subject:set.title+" — "+(sess.respondent||"resposta"),markdown:md}); }catch(e){ falhas.push("e-mail ("+(e.code||e.message||"erro")+")"); }
+    try{ await window.dhSendChat({title:set.title,respondent:sess.respondent||"",finishedAt:sess.finishedAt,score:sess.final?.nota??null,minScore:set.minScore??7,markdown:md}); }catch(e){ falhas.push("Google Chat ("+(e.code||e.message||"erro")+")"); }
+    if(falhas.length){ toast("Falha no envio: "+falhas.join(" e ")); b.disabled=false; } else toast("Respostas enviadas para "+EMAIL_TO+" e para o Google Chat");
+  }},h("span",{html:ICON.mail}),"Enviar respostas"));
   w.append(acts);
   // abas
   const tabs=h("div",{class:"tabs",role:"tablist"});
