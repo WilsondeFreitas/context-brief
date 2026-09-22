@@ -21,27 +21,45 @@ function shortSummary(text, max = 5) {
   return parts.slice(0, max).map((s) => s.trim()).join(" ").trim();
 }
 
+/* Canal preferencial: webhook de entrada do próprio Google Chat (CHAT_WEBHOOK_URL).
+   Sem ele, cai no webhook do n8n (N8N_WEBHOOK_URL + N8N_WEBHOOK_TOKEN). */
+const DIRECT = process.env.CHAT_WEBHOOK_URL || "";
+
 async function send(text) {
+  if (DIRECT) {
+    const r = await fetch(DIRECT, {
+      method: "POST",
+      headers: { "Content-Type": "application/json; charset=UTF-8" },
+      body: JSON.stringify({ text }),
+    });
+    const body = (await r.text()).slice(0, 500);
+    return { ok: r.ok, status: r.status, body, via: "google" };
+  }
   const r = await fetch(HOOK, {
     method: "POST",
     headers: { Authorization: `Bearer ${process.env.N8N_WEBHOOK_TOKEN}`, "Content-Type": "application/json" },
     body: JSON.stringify({ spaceId: `spaces/${SPACE_ID}`, text }),
   });
   const body = (await r.text()).slice(0, 500);
-  return { ok: r.ok, status: r.status, body };
+  return { ok: r.ok, status: r.status, body, via: "n8n" };
 }
 
+/* Menção: o n8n aceita {{mention:email}}; o webhook direto do Google não resolve e-mail,
+   então vai o nome em texto. */
+const mentionLine = () => DIRECT
+  ? `Responsável: ${process.env.CHAT_MENTION_NAME || "Wilson Freitas"}`
+  : `Responsável: {{mention:${MENTION}}}`;
+
 export default async function handler(req, res) {
-  const token = process.env.N8N_WEBHOOK_TOKEN;
-  if (!token) return json(res, 503, { error: "not_configured", detail: "N8N_WEBHOOK_TOKEN ausente" });
+  if (!DIRECT && !process.env.N8N_WEBHOOK_TOKEN) return json(res, 503, { error: "not_configured", detail: "defina CHAT_WEBHOOK_URL ou N8N_WEBHOOK_TOKEN" });
 
   // GET /api/chat?test=1 → dispara uma mensagem de teste e devolve a resposta crua do webhook.
   if (req.method === "GET") {
     if (String(req.query?.test || "") !== "1") {
-      return json(res, 200, { hook: HOOK, spaceId: `spaces/${SPACE_ID}`, mention: MENTION, hint: "use ?test=1 para enviar uma mensagem de teste" });
+      return json(res, 200, { via: DIRECT ? "google-webhook" : "n8n", spaceId: `spaces/${SPACE_ID}`, hint: "use ?test=1 para enviar uma mensagem de teste" });
     }
-    const r = await send(`*Context Hub — teste de integração*\nSe você está vendo esta mensagem, o webhook está funcionando.\nResponsável: {{mention:${MENTION}}}`);
-    return json(res, r.ok ? 200 : 502, { sent: r.ok, status: r.status, webhookResponse: r.body, hook: HOOK, spaceId: `spaces/${SPACE_ID}` });
+    const r = await send(`*Context Hub — teste de integração*\nSe você está vendo esta mensagem, o webhook está funcionando.\n${mentionLine()}`);
+    return json(res, r.ok ? 200 : 502, { sent: r.ok, via: r.via, status: r.status, webhookResponse: r.body, spaceId: `spaces/${SPACE_ID}` });
   }
 
   if (req.method !== "POST") return json(res, 405, { error: "method_not_allowed" });
@@ -69,13 +87,13 @@ export default async function handler(req, res) {
     "",
     summary || null,
     b.folderUrl ? `\n<${b.folderUrl}|Pasta com o markdown e os anexos>` : null,
-    `Responsável: {{mention:${MENTION}}}`,
+    mentionLine(),
   ].filter((l) => l !== null).join("\n").slice(0, 3800);
 
   try {
     const r = await send(text);
-    if (!r.ok) return json(res, 502, { error: "webhook_error", status: r.status, webhookResponse: r.body, hook: HOOK, spaceId: `spaces/${SPACE_ID}` });
-    return json(res, 200, { ok: true, spaceId: `spaces/${SPACE_ID}`, chars: text.length });
+    if (!r.ok) return json(res, 502, { error: "webhook_error", via: r.via, status: r.status, webhookResponse: r.body, spaceId: `spaces/${SPACE_ID}` });
+    return json(res, 200, { ok: true, via: r.via, spaceId: `spaces/${SPACE_ID}`, chars: text.length });
   } catch (e) {
     return json(res, 502, { error: "webhook_error", detail: String(e?.message || e), hook: HOOK });
   }
