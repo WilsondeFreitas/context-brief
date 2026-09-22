@@ -716,7 +716,7 @@ function renderLanding(wrap){
   if(!S.sets.length){ wrap.append(h("div",{class:"empty"},h("h3",null,"Nada para responder agora"))); return; }
   const list=h("div",{class:"list"});
   for(const s of S.sets){ const q=questionsOf(s).length;
-    list.append(h("div",{class:"item",onclick:()=>location.hash="#/r/"+s.id},h("div",null,h("div",{class:"eyebrow",style:"margin-bottom:4px"},MODULES[s.module]?.name||""),h("h4",null,s.title),h("div",{class:"meta"},h("span",null,q+" pergunta"+(q!==1?"s":"")),s.description?h("span",null,s.description):null)),h("div",{class:"actions"},h("button",{class:"btn sm"},"Responder"))));
+    list.append(h("div",{class:"item",onclick:()=>location.hash="#/r/"+s.id},h("div",null,h("div",{class:"eyebrow",style:"margin-bottom:4px"},MODULES[s.module]?.name||""),h("h4",null,s.title),h("div",{class:"meta"},h("span",null,q+" pergunta"+(q!==1?"s":"")))),h("div",{class:"actions"},h("button",{class:"btn sm"},"Responder"))));
   }
   wrap.append(list);
 }
@@ -739,7 +739,6 @@ function renderEditor(wrap){
 
   const form=h("div",{class:"card accent"});
   const fTitle=h("input",{class:"input",value:e.title,placeholder:"Ex.: Discovery — Portal do cooperado v2",oninput:ev=>e.title=ev.target.value});
-  const fDesc=h("textarea",{class:"input",rows:2,placeholder:"Uma frase sobre o tema e o que se espera das respostas.",oninput:ev=>e.description=ev.target.value},e.description);
   const fShort=h("input",{class:"input",value:e.shortName||"",placeholder:"ex.: portal-cooperado-v2",oninput:ev=>e.shortName=ev.target.value,onblur:ev=>{ ev.target.value=e.shortName=slugify(ev.target.value,""); }});
   const fQ=h("textarea",{class:"input mono",rows:14,placeholder:"## Problema\n- Qual dor do cooperado esse tema resolve hoje?\n  - Quem sofre e com que frequência?\n  - Qual o custo atual dessa dor?\n- Como medimos o problema atualmente?\n\n## Contexto\n- Quem são os stakeholders envolvidos?",oninput:ev=>{e.questionsMd=ev.target.value;updateQCount();}},e.questionsMd);
   const qCount=h("div",{class:"hint"});
@@ -750,7 +749,6 @@ function renderEditor(wrap){
   form.append(
     h("label",{class:"field"},h("span",null,"Título"),fTitle),
     h("label",{class:"field"},h("span",null,"Nome curto (pasta no Drive)"),fShort,h("span",{class:"hint"},"Só letras, números e hífen. Vazio usa o título. O markdown de cada resposta e os anexos vão para essa pasta no Drive.")),
-    h("label",{class:"field"},h("span",null,"Descrição breve"),fDesc),
     h("label",{class:"field"},h("span",null,"Perguntas (texto ou markdown)"),fQ,qCount),
     h("label",{class:"field"},h("span",null,"Contexto"),fCtx),
     h("div",{class:"field"},h("span",{style:"display:block;font-size:13px;font-weight:600;color:var(--heading);margin-bottom:6px"},"Documentos de apoio (RAG)"),
@@ -862,19 +860,24 @@ async function extractText(file){
   }
   return (await file.text()).trim();
 }
+const strHash = t => { let h=0; const x=String(t||""); for(let i=0;i<x.length;i++){ h=(h*31+x.charCodeAt(i))|0; } return String(h>>>0)+":"+x.length; };
 async function summarizeContext(set){
   if(!S.sample||!(set.context||"").trim()) return "";
-  const prompt=`Você vai apresentar um formulário de discovery para uma pessoa da área de negócios. Reescreva o contexto abaixo como um único parágrafo em português do Brasil, com no máximo 5 frases curtas, na segunda pessoa, dizendo do que se trata, por que as respostas importam e o que se espera dela. Não exponha decisões internas, nomes de fornecedores, valores ou críticas que não ajudem quem responde. Sem título, sem lista, sem markdown.
+  const prompt=`Você vai apresentar um formulário de discovery para uma pessoa da área de negócios que ainda não conhece o assunto em detalhe. Com base no contexto abaixo, escreva uma introdução em português do Brasil, na segunda pessoa, em dois parágrafos curtos (até 8 frases no total, frases de no máximo 20 palavras):
+
+1º parágrafo: do que trata a iniciativa, qual problema ou oportunidade motivou as perguntas e por que isso importa agora.
+2º parágrafo: como as respostas serão usadas, que tipo de informação ajuda (números, exemplos reais, casos concretos, o que já foi tentado) e o que a pessoa ganha respondendo bem.
+
+Regras: não exponha decisões internas, nomes de fornecedores, valores negociados ou críticas que não ajudem quem responde; não use título, lista, negrito ou markdown; não invente fatos que não estejam no contexto.
 
 ## Título
 ${set.title}
-${set.description?"## Descrição\n"+set.description:""}
 
 ## Contexto original
 ${set.context}
 
-Responda SOMENTE com JSON: {"resumo": "parágrafo"}`;
-  try{ const r=await S.sample.json(prompt,{modelTier:"default",cache:false}); return String(r?.resumo||"").trim().slice(0,700); }catch(e){ console.warn("summary",e); return ""; }
+Responda SOMENTE com JSON: {"resumo": "parágrafo 1\n\nparágrafo 2"}`;
+  try{ const r=await S.sample.json(prompt,{modelTier:"default",cache:false}); return String(r?.resumo||"").trim().slice(0,1400); }catch(e){ console.warn("summary",e); return ""; }
 }
 async function describeImage(image,name){
   if(!S.sample) return "";
@@ -911,18 +914,19 @@ async function saveSet(btn){
   try{
     const id=e.id||uid(); const now=new Date().toISOString();
     const ctx=(e.context||"").trim();
-    if(ctx && (ctx!==(e.contextSource||"") || !e.contextSummary)){ btn.textContent="Resumindo o contexto…"; e.contextSummary=await summarizeContext({title:e.title,description:e.description,context:ctx}); e.contextSource=ctx; }
-    if(!ctx){ e.contextSummary=""; e.contextSource=""; }
+    const hsh=strHash(ctx);
+    if(ctx && (hsh!==(e.contextHash||"") || !e.contextSummary)){ btn.textContent="Resumindo o contexto…"; e.contextSummary=await summarizeContext({title:e.title,context:ctx}); e.contextHash=hsh; }
+    if(!ctx){ e.contextSummary=""; e.contextHash=""; }
     btn.textContent="Salvando…";
     for(const d of S.editDocs){
       await S.db.doc("docs/"+d.id).set({setId:id,name:d.name,text:d.text,chars:d.chars,assetId:d.assetId,url:d.url||null,kind:d.kind||"",mime:d.mime,createdAt:d.createdAt||now});
     }
     // remove docs que saíram da lista
     for(const oldId of (e.docIds||[])) if(!S.editDocs.some(d=>d.id===oldId)) await S.db.doc("docs/"+oldId).delete().catch(()=>{});
-    const body={module:e.module,title:e.title.trim(),shortName:slugify(e.shortName||e.title),description:(e.description||"").trim(),questionsMd:e.questionsMd,questions:qs,context:(e.context||"").trim(),contextSummary:e.contextSummary||"",contextSource:e.contextSource||"",docIds:S.editDocs.map(d=>d.id),createdAt:e.createdAt||now,updatedAt:now};
+    const body={module:e.module,title:e.title.trim(),shortName:slugify(e.shortName||e.title),description:(e.description||"").trim(),questionsMd:e.questionsMd,questions:qs,context:(e.context||"").trim(),contextSummary:e.contextSummary||"",contextHash:e.contextHash||"",docIds:S.editDocs.map(d=>d.id),createdAt:e.createdAt||now,updatedAt:now};
     await S.db.doc("sets/"+id).set(body);
     S.editing={id,...body}; toast(e.id?"Conjunto atualizado":"Conjunto criado"); render();
-  }catch(err){ console.error(err); toast(err.code==="quota_exceeded"?"Limite de armazenamento atingido":"Falha ao salvar: "+(err.code||err.message)); btn.disabled=false; btn.textContent="Salvar e gerar link"; }
+  }catch(err){ console.error(err); toast(err.code==="quota_exceeded"?"Limite de armazenamento atingido":"Falha ao salvar: "+(err.message||err.code)); btn.disabled=false; btn.textContent="Salvar e gerar link"; }
 }
 async function deleteSet(e){
   if(!confirm(`Excluir "${e.title}" e seus documentos de apoio? As respostas já registradas permanecem, mas o link de resposta deixa de funcionar.`)) return;
@@ -1025,7 +1029,7 @@ function renderTop(page,set,sess){
     h("img",{src:ASSETS.lockupLight,alt:"NX VERTEX"}),
     h("div",{class:"eyebrow",style:"color:var(--n300)"},MODULES[set.module]?.name||"Discovery"),
     h("h1",{style:"margin-top:6px"},set.title),
-    set.description?h("p",null,set.description):null,
+
     h("div",{class:"stats"},h("span",null,h("b",null,n)," pergunta"+(n!==1?"s":"")),h("span",null,h("b",{id:"topDone"},done)," respondida"+(done!==1?"s":"")),
       h("div",{class:"progress"},h("i",{id:"topBar",style:"width:"+pct+"%"})),h("span",{id:"topPct"},pct+"%"))));
   page.append(top);
@@ -1038,7 +1042,7 @@ function renderIntro(w){
   const set=R.set; const qs=set.questions||[];
   if(set.context&&!set.contextSummary&&S.sample){
     summarizeContext(set).then(async sum=>{ if(!sum) return; set.contextSummary=sum; const el=$("#ctxSummary"); if(el) el.innerHTML=mdToHtml(sum);
-      try{ const {id,...body}=set; await S.db.doc("sets/"+id).set({...body,contextSummary:sum,contextSource:set.context}); }catch(e){ console.warn("persist summary",e); } });
+      try{ const {id,...body}=set; await S.db.doc("sets/"+id).set({...body,contextSummary:sum,contextHash:strHash(set.context)}); }catch(e){ console.warn("persist summary",e); } });
   }
   const fNome=h("input",{class:"input",placeholder:"Nome completo"});
   const fEmail=h("input",{class:"input",type:"email",placeholder:"nome@nexenergy.com.br"});
@@ -1329,7 +1333,7 @@ async function publishAndNotify(set,sess,ui){
   sess.driveError=(pub.drive&&pub.drive.error)||(sess.publishError?"publicação falhou: "+sess.publishError:"");
   ui?.set("md",pub.mdUrl?"done":"fail",files.length?files.length+" anexo"+(files.length!==1?"s":""):"sem anexos");
   ui?.set("drive",sess.folderUrl?"done":"fail",sess.folderUrl?"":"não gravado");
-  const envio={title:set.title,description:set.description||"",respondent:sess.respondent||"",email:sess.email||"",area:sess.area||"",
+  const envio={title:set.title,description:set.contextSummary||"",respondent:sess.respondent||"",email:sess.email||"",area:sess.area||"",
     finishedAt:sess.finishedAt,summary:sess.final?.resumo||"",
     folderUrl:sess.folderUrl,mdUrl:sess.mdUrl,mdName:pub.mdName||"respostas.md",bundleUrl:sess.bundleUrl,bundleName:pub.bundleName||"anexos.zip",attachedZip:!!sess.bundleUrl};
   ui?.set("mail","doing");
@@ -1345,7 +1349,7 @@ function buildMarkdown(set,sess){
   const mod=MODULES[set.module]?.name||"Discovery";
   const L=[];
   L.push(`# ${set.title}`,``,`**Módulo:** ${mod}  `,`**Respondente:** ${sess.respondent||"não informado"}${sess.area?" — "+sess.area:""}  `,sess.email?`**E-mail:** ${sess.email}  `:"",`**Início:** ${fmtDate(sess.startedAt)}  `,`**Conclusão:** ${sess.finishedAt?fmtDate(sess.finishedAt):"—"}  `,``);
-  if(set.description) L.push(`> ${set.description}`,``);
+  if(set.contextSummary) L.push(`> ${set.contextSummary}`,``);
   if(sess.final?.resumo) L.push(`## Análise geral`,``,sess.final.resumo,``);
   if(sess.final?.pontos_fortes?.length) L.push(`**Pontos fortes**`,...sess.final.pontos_fortes.map(p=>`- ${p}`),``);
   if(sess.final?.lacunas?.length) L.push(`**Lacunas**`,...sess.final.lacunas.map(p=>`- ${p}`),``);
