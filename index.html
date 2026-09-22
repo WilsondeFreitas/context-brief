@@ -664,7 +664,8 @@ function renderList(wrap){
       h("div",{class:"actions"},
         h("button",{class:"btn sm outline",onclick:e=>{e.stopPropagation();copyLink(s.id);}},h("span",{html:ICON.copy}),"Copiar link"),
         h("button",{class:"btn sm ghost",onclick:e=>{e.stopPropagation();location.hash="#/r/"+s.id;}},"Abrir"),
-        S.canEdit?h("button",{class:"btn sm ghost",onclick:e=>{e.stopPropagation();openEditor(s);}},"Editar"):null));
+        S.canEdit?h("button",{class:"btn sm ghost",onclick:e=>{e.stopPropagation();openEditor(s);}},"Editar"):null,
+        S.canEdit?h("button",{class:"btn sm ghost",style:"color:var(--danger)",onclick:e=>{e.stopPropagation();deleteSet(s);}},"Excluir"):null));
     list.append(it);
   }
   wrap.append(list);
@@ -710,7 +711,7 @@ function renderEditor(wrap){
     h("div",{class:"row"},
       h("label",{class:"field",style:"flex:3 1 320px"},h("span",null,"Título"),fTitle),
       h("label",{class:"field",style:"flex:1 1 140px"},h("span",null,"Nota mínima (0–10)"),fMin,h("span",{class:"hint"},"Abaixo disso o conjunto não segue."))),
-    h("label",{class:"field"},h("span",null,"Nome curto (pasta no Drive)"),fShort,h("span",{class:"hint"},"Só letras, números e hífen. Vazio usa o título. A pasta no Drive é criada apenas quando alguém anexa arquivos.")),
+    h("label",{class:"field"},h("span",null,"Nome curto (pasta no Drive)"),fShort,h("span",{class:"hint"},"Só letras, números e hífen. Vazio usa o título. O markdown de cada resposta e os anexos vão para essa pasta no Drive.")),
     h("label",{class:"field"},h("span",null,"Descrição breve"),fDesc),
     h("label",{class:"field"},h("span",null,"Perguntas (texto ou markdown)"),fQ,qCount),
     h("label",{class:"field"},h("span",null,"Contexto"),fCtx),
@@ -854,7 +855,7 @@ async function saveSet(btn){
   }catch(err){ console.error(err); toast(err.code==="quota_exceeded"?"Limite de armazenamento atingido":"Falha ao salvar: "+(err.code||err.message)); btn.disabled=false; btn.textContent="Salvar e gerar link"; }
 }
 async function deleteSet(e){
-  if(!confirm("Excluir este conjunto e seus documentos? As respostas já registradas permanecem.")) return;
+  if(!confirm(`Excluir "${e.title}" e seus documentos de apoio? As respostas já registradas permanecem, mas o link de resposta deixa de funcionar.`)) return;
   try{ for(const d of (e.docIds||[])) await S.db.doc("docs/"+d).delete().catch(()=>{}); await S.db.doc("sets/"+e.id).delete(); S.view="list"; S.editing=null; toast("Conjunto excluído"); render(); }catch(err){ toast("Falha ao excluir"); }
 }
 
