@@ -404,6 +404,24 @@ table.data tr.click{cursor:pointer}table.data tr.click:hover td{background:var(-
   window.claude.use = (name) =>
     CAPS[name] ? Promise.resolve(CAPS[name]) : Promise.reject(Object.assign(new Error("capability desconhecida"), { code: "not_granted" }));
 
+  window.dhAttach = async (sessionId, file) => {
+    const r = await jsonFetch(
+      "/api/attach?session=" + encodeURIComponent(sessionId) + "&name=" + encodeURIComponent(file.name || "arquivo"),
+      { method: "POST", headers: { "Content-Type": file.type || "application/octet-stream" }, body: file }
+    );
+    return { url: r.url, bytes: r.bytes };
+  };
+
+  window.dhBundleUrl = (sessionId, title) =>
+    "/api/bundle?session=" + encodeURIComponent(sessionId) + "&title=" + encodeURIComponent(title || "respostas");
+
+  window.dhPublish = (payload) =>
+    jsonFetch("/api/publish", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+
   window.dhSendMail = (payload) =>
     jsonFetch("/api/mail", {
       method: "POST",
@@ -680,6 +698,7 @@ function renderEditor(wrap){
   const fTitle=h("input",{class:"input",value:e.title,placeholder:"Ex.: Discovery — Portal do cooperado v2",oninput:ev=>e.title=ev.target.value});
   const fDesc=h("textarea",{class:"input",rows:2,placeholder:"Uma frase sobre o tema e o que se espera das respostas.",oninput:ev=>e.description=ev.target.value},e.description);
   const fMin=h("input",{class:"input",type:"number",min:0,max:10,step:"0.5",value:e.minScore??7,oninput:ev=>e.minScore=parseFloat(ev.target.value)||0});
+  const fShort=h("input",{class:"input",value:e.shortName||"",placeholder:"ex.: portal-cooperado-v2",oninput:ev=>e.shortName=ev.target.value,onblur:ev=>{ ev.target.value=e.shortName=slugify(ev.target.value,""); }});
   const fQ=h("textarea",{class:"input mono",rows:14,placeholder:"## Problema\n- Qual dor do cooperado esse tema resolve hoje?\n- Como medimos o problema atualmente?\n\n## Contexto\n- Quem são os stakeholders envolvidos?",oninput:ev=>{e.questionsMd=ev.target.value;updateQCount();}},e.questionsMd);
   const qCount=h("div",{class:"hint"});
   const updateQCount=()=>{ const qs=parseQuestions(e.questionsMd); qCount.textContent=qs.length? qs.length+" pergunta"+(qs.length>1?"s":"")+" detectada"+(qs.length>1?"s":"") : "Nenhuma pergunta detectada ainda."; };
@@ -690,6 +709,7 @@ function renderEditor(wrap){
     h("div",{class:"row"},
       h("label",{class:"field",style:"flex:3 1 320px"},h("span",null,"Título"),fTitle),
       h("label",{class:"field",style:"flex:1 1 140px"},h("span",null,"Nota mínima (0–10)"),fMin,h("span",{class:"hint"},"Abaixo disso o conjunto não segue."))),
+    h("label",{class:"field"},h("span",null,"Nome curto (pasta no Drive)"),fShort,h("span",{class:"hint"},"Só letras, números e hífen. Vazio usa o título. A pasta no Drive é criada apenas quando alguém anexa arquivos.")),
     h("label",{class:"field"},h("span",null,"Descrição breve"),fDesc),
     h("label",{class:"field"},h("span",null,"Perguntas (texto ou markdown)"),fQ,qCount),
     h("label",{class:"field"},h("span",null,"Contexto"),fCtx),
@@ -827,7 +847,7 @@ async function saveSet(btn){
     }
     // remove docs que saíram da lista
     for(const oldId of (e.docIds||[])) if(!S.editDocs.some(d=>d.id===oldId)) await S.db.doc("docs/"+oldId).delete().catch(()=>{});
-    const body={module:e.module,title:e.title.trim(),description:(e.description||"").trim(),questionsMd:e.questionsMd,questions:qs,context:(e.context||"").trim(),minScore:Number(e.minScore??7),docIds:S.editDocs.map(d=>d.id),createdAt:e.createdAt||now,updatedAt:now};
+    const body={module:e.module,title:e.title.trim(),shortName:slugify(e.shortName||e.title),description:(e.description||"").trim(),questionsMd:e.questionsMd,questions:qs,context:(e.context||"").trim(),minScore:Number(e.minScore??7),docIds:S.editDocs.map(d=>d.id),createdAt:e.createdAt||now,updatedAt:now};
     await S.db.doc("sets/"+id).set(body);
     S.editing={id,...body}; toast(e.id?"Conjunto atualizado":"Conjunto criado"); render();
   }catch(err){ console.error(err); toast(err.code==="quota_exceeded"?"Limite de armazenamento atingido":"Falha ao salvar: "+(err.code||err.message)); btn.disabled=false; btn.textContent="Salvar e gerar link"; }
@@ -925,21 +945,31 @@ function updateTop(){
 }
 function renderIntro(w){
   const set=R.set; const qs=set.questions||[];
-  const name=h("input",{class:"input",placeholder:"Seu nome e área (ex.: Ana — Comercial)"});
+  const fNome=h("input",{class:"input",placeholder:"Nome completo"});
+  const fEmail=h("input",{class:"input",type:"email",placeholder:"nome@nexenergy.com.br"});
+  const fArea=h("input",{class:"input",placeholder:"ex.: Comercial"});
   const card=h("div",{class:"card accent",style:"max-width:640px"},
     h("div",{class:"eyebrow"},"Antes de começar"),h("h2",{style:"margin-top:8px"},"Como funciona"),h("div",{class:"rule sm"}),
     h("p",null,"As perguntas aparecem uma a uma, em formato de conversa. Você pode anexar arquivos a qualquer resposta pelo botão + : PDF, markdown, txt, csv, Word, Excel e imagens entram na análise. A cada resposta, a IA avalia a clareza e a completude e pode pedir um complemento. Ao final você recebe um resumo com a nota das respostas e pode baixar o consolidado em markdown."),
     set.context?h("div",{class:"callout",style:"margin:16px 0",html:mdToHtml(set.context)}):null,
     R.docs.length?h("p",{class:"small muted"},"Documentos de apoio considerados pela IA: "+R.docs.map(d=>d.name).join(", ")):null,
-    h("label",{class:"field",style:"margin-top:20px"},h("span",null,"Quem responde"),name),
+    h("div",{class:"row",style:"margin-top:20px"},
+      h("label",{class:"field",style:"flex:2 1 220px"},h("span",null,"Quem responde"),fNome),
+      h("label",{class:"field",style:"flex:1 1 160px"},h("span",null,"Área"),fArea)),
+    h("label",{class:"field"},h("span",null,"E-mail"),fEmail),
     h("div",{style:"display:flex;gap:10px;align-items:center;flex-wrap:wrap"},
-      h("button",{class:"btn",onclick:()=>startSession(name.value.trim())},"Começar — "+qs.length+" pergunta"+(qs.length!==1?"s":"")),
+      h("button",{class:"btn",onclick:ev=>{
+        const nome=fNome.value.trim(), mail=fEmail.value.trim(), area=fArea.value.trim();
+        if(!nome) return toast("Informe seu nome");
+        if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(mail)) return toast("Informe um e-mail válido");
+        ev.currentTarget.disabled=true; startSession(nome,mail,area).catch(e=>{ toast("Não foi possível iniciar: "+(e.message||e)); ev.currentTarget.disabled=false; });
+      }},"Começar — "+qs.length+" pergunta"+(qs.length!==1?"s":"")),
       S.sample?null:h("span",{class:"small muted"},"Análise por IA indisponível nesta visualização; as respostas serão apenas registradas.")));
   w.append(card);
 }
-async function startSession(respondent){
+async function startSession(respondent,email,area){
   const sid=uid(); const now=new Date().toISOString();
-  const sess={setId:R.set.id,respondent:respondent||"",status:"em_andamento",startedAt:now,current:0,followup:false,answers:[],turns:[]};
+  const sess={setId:R.set.id,respondent:respondent||"",email:email||"",area:area||"",status:"em_andamento",startedAt:now,current:0,followup:false,answers:[],turns:[]};
   try{ await S.db.doc("sessions/"+sid).set(sess); }catch(e){ console.error(e); return toast("Não foi possível iniciar (sem permissão de escrita?)"); }
   R.sess={id:sid,...sess}; try{ localStorage.setItem("dh:sess:"+R.set.id,sid); }catch(e){}
   const w=$("#rw"); w.innerHTML=""; renderChat(w);
@@ -984,10 +1014,12 @@ async function addAttachments(files){
   for(const f of Array.from(files||[])){
     if(R.pending.length>=MAX_ANSWER_FILES){ toast("Máximo de "+MAX_ANSWER_FILES+" arquivos por resposta"); break; }
     if(f.size>MAX_FILE_BYTES){ toast(f.name+": acima de 12 MB"); continue; }
-    const a={name:f.name,kind:fileKind(f),bytes:f.size,text:"",image:null,preview:null,busy:true,error:null};
+    const a={name:f.name,kind:fileKind(f),bytes:f.size,text:"",image:null,preview:null,busy:true,error:null,url:null};
     R.pending.push(a); renderChips();
     try{ Object.assign(a,await readAttachment(f)); }
-    catch(e){ a.error=String(e.message||e); toast(f.name+": "+a.error); R.pending=R.pending.filter(x=>x!==a); }
+    catch(e){ a.error=String(e.message||e); toast(f.name+": "+a.error); R.pending=R.pending.filter(x=>x!==a); a.busy=false; renderChips(); continue; }
+    try{ if(R.sess&&R.sess.id){ const up=await window.dhAttach(R.sess.id,f); a.url=up.url; } }
+    catch(e){ console.warn("attach",e); toast(f.name+": não consegui guardar o arquivo, mas o conteúdo entra na análise"); }
     a.busy=false; renderChips();
   }
 }
@@ -1072,7 +1104,7 @@ async function handleAnswer(text){
   if(R.busy) return; R.busy=true;
   const i=R.sess.current; const q=R.set.questions[i];
   const files=R.pending.filter(a=>!a.busy&&!a.error); R.pending=[]; renderChips();
-  const meta=files.map(a=>({name:a.name,kind:a.kind,bytes:a.bytes,chars:(a.text||"").length}));
+  const meta=files.map(a=>({name:a.name,kind:a.kind,bytes:a.bytes,chars:(a.text||"").length,url:a.url||null}));
   appendTurn({role:"user",text,files:meta});
   let ans=R.sess.answers[i]; if(!ans){ ans={qid:q.id,question:q.text,section:q.section||"",answer:"",followupQ:null,followupA:null,score:null,feedback:"",files:[],followupFiles:[],filesText:"",filesSummary:""}; R.sess.answers[i]=ans; }
   const isFollow=!!R.sess.followup;
@@ -1150,8 +1182,18 @@ async function finish(){
   if(!R.sess.final) R.sess.final={nota:R.sess.avgScore,resumo:S.sample?"Consolidação por IA indisponível; a nota geral é a média das notas individuais.":"Sem análise por IA nesta visualização; a nota geral é a média das notas individuais, quando existirem.",pontos_fortes:[],lacunas:[],proximo_passo:""};
   R.sess.status="concluido"; R.sess.finishedAt=new Date().toISOString();
   R.sess.markdown=buildMarkdown(R.set,R.sess);
-  try{ await window.dhSendMail({subject:R.set.title+" — "+(R.sess.respondent||"resposta"),markdown:R.sess.markdown}); R.sess.mailed=true; }catch(e){ console.warn("mail",e); R.sess.mailed=false; }
-  try{ await window.dhSendChat({title:R.set.title,respondent:R.sess.respondent||"",finishedAt:R.sess.finishedAt,score:R.sess.final?.nota??null,minScore:R.set.minScore??7,markdown:R.sess.markdown}); R.sess.chatSent=true; }catch(e){ console.warn("chat",e); R.sess.chatSent=false; R.sess.chatError=String(e.message||e); }
+  let pub={};
+  try{ pub=await window.dhPublish({sessionId:R.sess.id,title:R.set.title,shortName:R.set.shortName||"",markdown:R.sess.markdown})||{}; }
+  catch(e){ console.warn("publish",e); R.sess.publishError=String(e.message||e); }
+  R.sess.folderUrl=pub.folderUrl||""; R.sess.bundleUrl=pub.bundleUrl||""; R.sess.mdUrl=pub.mdUrl||"";
+  if(pub.drive&&pub.drive.error) R.sess.driveError=pub.drive.error;
+  const envio={title:R.set.title,description:R.set.description||"",respondent:R.sess.respondent||"",email:R.sess.email||"",area:R.sess.area||"",
+    finishedAt:R.sess.finishedAt,score:R.sess.final?.nota??null,minScore:R.set.minScore??7,summary:R.sess.final?.resumo||"",
+    folderUrl:pub.folderUrl||"",mdUrl:pub.mdUrl||"",mdName:pub.mdName||"respostas.md",bundleUrl:pub.bundleUrl||"",bundleName:pub.bundleName||"anexos.zip",attachedZip:!!pub.bundleUrl};
+  try{ await window.dhSendMail(envio); R.sess.mailed=true; }
+  catch(e){ console.warn("mail",e); R.sess.mailed=false; R.sess.mailError=String(e.message||e); }
+  try{ await window.dhSendChat(envio); R.sess.chatSent=true; }
+  catch(e){ console.warn("chat",e); R.sess.chatSent=false; R.sess.chatError=String(e.message||e); }
   await saveSess(); updateTop();
   try{ localStorage.removeItem("dh:sess:"+R.set.id); }catch(e){}
   w.innerHTML=""; renderDashboard(w,R.set,R.sess,{});
@@ -1160,7 +1202,7 @@ async function finish(){
 function buildMarkdown(set,sess){
   const mod=MODULES[set.module]?.name||"Discovery";
   const L=[];
-  L.push(`# ${set.title}`,``,`**Módulo:** ${mod}  `,`**Respondente:** ${sess.respondent||"não informado"}  `,`**Início:** ${fmtDate(sess.startedAt)}  `,`**Conclusão:** ${sess.finishedAt?fmtDate(sess.finishedAt):"—"}  `,`**Nota geral:** ${sess.final?.nota!=null?fmtNum(sess.final.nota,1):"n/d"} / 10 (mínimo ${fmtNum(set.minScore??7,1)}) — ${sess.final?.nota!=null?(sess.final.nota>=(set.minScore??7)?"APTO A SEGUIR":"NÃO SEGUE"):"sem avaliação"}`,``);
+  L.push(`# ${set.title}`,``,`**Módulo:** ${mod}  `,`**Respondente:** ${sess.respondent||"não informado"}${sess.area?" — "+sess.area:""}  `,sess.email?`**E-mail:** ${sess.email}  `:"",`**Início:** ${fmtDate(sess.startedAt)}  `,`**Conclusão:** ${sess.finishedAt?fmtDate(sess.finishedAt):"—"}  `,`**Nota geral:** ${sess.final?.nota!=null?fmtNum(sess.final.nota,1):"n/d"} / 10 (mínimo ${fmtNum(set.minScore??7,1)}) — ${sess.final?.nota!=null?(sess.final.nota>=(set.minScore??7)?"APTO A SEGUIR":"NÃO SEGUE"):"sem avaliação"}`,``);
   if(set.description) L.push(`> ${set.description}`,``);
   if(sess.final?.resumo) L.push(`## Análise geral`,``,sess.final.resumo,``);
   if(sess.final?.pontos_fortes?.length) L.push(`**Pontos fortes**`,...sess.final.pontos_fortes.map(p=>`- ${p}`),``);
@@ -1189,7 +1231,7 @@ function renderDashboard(w,set,sess,opts){
   const nota=sess.final?.nota; const min=set.minScore??7;
   const apto=nota!=null?nota>=min:null;
   const answered=answers.filter(a=>a.answer).length;
-  const head=h("div",{class:"page-head",style:"margin-bottom:20px"},h("div",null,h("div",{class:"eyebrow"},"Resultado"),h("h2",{style:"margin-top:6px"},sess.status==="concluido"?"Formulário concluído":"Sessão em andamento"),h("p",null,(sess.respondent?sess.respondent+" · ":"")+fmtDate(sess.startedAt)+(apto!=null?"":""))),
+  const head=h("div",{class:"page-head",style:"margin-bottom:20px"},h("div",null,h("div",{class:"eyebrow"},"Resultado"),h("h2",{style:"margin-top:6px"},sess.status==="concluido"?"Formulário concluído":"Sessão em andamento"),h("p",null,[sess.respondent,sess.area,sess.email].filter(Boolean).concat([fmtDate(sess.startedAt)]).join(" · "))),
     h("div",{style:"display:flex;flex-direction:column;align-items:flex-end;gap:12px"},
       apto!=null?h("span",{class:"badge "+(apto?"pos":"danger")},apto?"Apto a seguir":"Não segue — abaixo de "+fmtNum(min,1)):null));
   w.append(head);
@@ -1200,13 +1242,29 @@ function renderDashboard(w,set,sess,opts){
   const acts=h("div",{class:"actions-bar"});
   if(!opts.readonly) acts.append(h("button",{class:"btn outline",onclick:()=>{ try{localStorage.removeItem("dh:sess:"+set.id);}catch(e){} R.sess=null; R.pending=[]; const wr=$("#rw"); wr.innerHTML=""; renderIntro(wr); }},"Nova resposta"));
   acts.append(h("button",{class:"btn secondary",disabled:!S.downloads,title:S.downloads?"Baixar o consolidado em markdown":"Download indisponível nesta visualização",onclick:async ev=>{ const b=ev.currentTarget; b.disabled=true; try{ await S.downloads.save({filename:fname,data:md}); toast("Respostas salvas"); }catch(e){ if(e.code!=="declined") toast("Não foi possível salvar ("+(e.code||"erro")+")"); } b.disabled=false; }},h("span",{html:ICON.download}),"Baixar respostas"));
+  const nFiles=(sess.answers||[]).reduce((n,a)=>n+((a?.files||[]).concat(a?.followupFiles||[]).filter(f=>f&&f.url).length),0);
+  if(nFiles) acts.append(h("button",{class:"btn secondary",title:"Baixar um zip com o markdown e os "+nFiles+" arquivo"+(nFiles!==1?"s":"")+" anexados",onclick:()=>{ const a=document.createElement("a"); a.href=window.dhBundleUrl(sess.id,set.title); a.download=""; document.body.append(a); a.click(); a.remove(); }},h("span",{html:ICON.download}),"Baixar anexos ("+nFiles+")"));
   acts.append(h("button",{class:"btn",title:"Enviar o consolidado para "+EMAIL_TO+" e para o Google Chat",onclick:async ev=>{ const b=ev.currentTarget; b.disabled=true;
-    const falhas=[];
-    try{ await window.dhSendMail({subject:set.title+" — "+(sess.respondent||"resposta"),markdown:md}); }catch(e){ falhas.push("e-mail ("+(e.code||e.message||"erro")+")"); }
-    try{ await window.dhSendChat({title:set.title,respondent:sess.respondent||"",finishedAt:sess.finishedAt,score:sess.final?.nota??null,minScore:set.minScore??7,markdown:md}); }catch(e){ falhas.push("Google Chat ("+(e.code||e.message||"erro")+")"); }
+    const falhas=[]; let pub={};
+    try{ pub=await window.dhPublish({sessionId:sess.id,title:set.title,shortName:set.shortName||"",markdown:md})||{}; }catch(e){ falhas.push("publicação ("+(e.code||e.message||"erro")+")"); }
+    const envio={title:set.title,description:set.description||"",respondent:sess.respondent||"",email:sess.email||"",area:sess.area||"",
+      finishedAt:sess.finishedAt,score:sess.final?.nota??null,minScore:set.minScore??7,summary:sess.final?.resumo||"",
+      folderUrl:pub.folderUrl||sess.folderUrl||"",mdUrl:pub.mdUrl||sess.mdUrl||"",mdName:pub.mdName||"respostas.md",
+      bundleUrl:pub.bundleUrl||sess.bundleUrl||"",bundleName:pub.bundleName||"anexos.zip",attachedZip:!!(pub.bundleUrl||sess.bundleUrl)};
+    try{ await window.dhSendMail(envio); }catch(e){ falhas.push("e-mail ("+(e.code||e.message||"erro")+")"); }
+    try{ await window.dhSendChat(envio); }catch(e){ falhas.push("Google Chat ("+(e.code||e.message||"erro")+")"); }
     if(falhas.length){ toast("Falha no envio: "+falhas.join(" e ")); b.disabled=false; } else toast("Respostas enviadas para "+EMAIL_TO+" e para o Google Chat");
   }},h("span",{html:ICON.mail}),"Enviar respostas"));
   w.append(acts);
+  if(sess.status==="concluido"&&(sess.mailed!=null||sess.chatSent!=null)){
+    const st=[];
+    if(sess.mailed===false) st.push("e-mail não enviado"+(sess.mailError?" ("+sess.mailError+")":""));
+    if(sess.chatSent===false) st.push("Google Chat não enviado"+(sess.chatError?" ("+sess.chatError+")":""));
+    if(sess.driveError) st.push("Drive: "+sess.driveError);
+    w.append(h("div",{class:"small",style:"text-align:right;margin-top:8px;color:"+(st.length?"var(--danger)":"var(--muted)")},
+      st.length?"Falha no envio automático: "+st.join(" · ")+". Use \u201cEnviar respostas\u201d para tentar de novo.":"Enviado para "+EMAIL_TO+" e para o Google Chat."));
+    if(sess.folderUrl) w.append(h("div",{class:"small",style:"text-align:right;margin-top:4px"},h("a",{href:sess.folderUrl,target:"_blank",rel:"noopener"},"Abrir a pasta no Google Drive")));
+  }
   // abas
   const tabs=h("div",{class:"tabs",role:"tablist"});
   const panes={dash:h("div",{role:"tabpanel"}),detail:h("div",{role:"tabpanel",class:"hidden"})};
