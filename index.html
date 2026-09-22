@@ -269,6 +269,17 @@ table.data tr.click{cursor:pointer}table.data tr.click:hover td{background:var(-
 .qa .q{font-weight:600;color:var(--heading);display:flex;gap:12px;align-items:flex-start;justify-content:space-between}
 .qa .a{margin:8px 0;white-space:pre-wrap;font-size:14px}
 .qa .f{font-size:13px;color:var(--muted);border-left:3px solid var(--border-strong);padding-left:12px;margin-top:8px}
+.finishing{max-width:560px;margin:8px auto 0;padding:24px 28px}
+.finishing .progress{margin:14px 0 18px}
+.finishing ol{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.finishing li{display:flex;align-items:center;gap:12px;font-size:14px;color:var(--muted)}
+.finishing li .dot{width:22px;height:22px;border-radius:50%;border:2px solid var(--border-strong);display:flex;align-items:center;justify-content:center;flex:none;font-size:12px;color:#fff}
+.finishing li.doing{color:var(--heading);font-weight:600}
+.finishing li.doing .dot{border-color:var(--tracao);border-top-color:transparent;animation:spin 800ms linear infinite}
+.finishing li.done{color:var(--heading)}
+.finishing li.done .dot{background:var(--potencial);border-color:var(--potencial)}
+.finishing li.fail .dot{background:var(--warn);border-color:var(--warn)}
+.finishing li .note{margin-left:auto;font-size:12px;color:var(--muted);font-weight:400}
 .tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin:24px 0 20px}
 .tabs button{background:none;border:none;border-bottom:2px solid transparent;margin-bottom:-1px;padding:10px 16px;font-weight:600;font-size:14px;color:var(--muted);cursor:pointer;transition:color 120ms var(--ease)}
 .tabs button:hover{color:var(--heading)}
@@ -1008,7 +1019,7 @@ function renderChips(){
     el.append(h("div",{class:"chip"+(a.busy?" busy":"")},
       a.preview?h("img",{src:a.preview,alt:""}):h("span",{html:ICON.clip,style:"color:var(--accent);display:flex"}),
       h("span",{class:"nm"},a.name),
-      h("span",{class:"sz"},a.busy?"lendo…":(a.error?a.error:(a.kind==="image"?"imagem":fmtBytes(a.bytes)))),
+      h("span",{class:"sz",style:a.uploadError?"color:var(--danger)":""},a.busy?"lendo…":(a.error?a.error:a.uploadError?"não guardado":(a.kind==="image"?"imagem":fmtBytes(a.bytes)))),
       h("button",{title:"Remover",html:ICON.x,onclick:()=>{R.pending=R.pending.filter(x=>x!==a);renderChips();}})));
   }
 }
@@ -1020,8 +1031,12 @@ async function addAttachments(files){
     R.pending.push(a); renderChips();
     try{ Object.assign(a,await readAttachment(f)); }
     catch(e){ a.error=String(e.message||e); toast(f.name+": "+a.error); R.pending=R.pending.filter(x=>x!==a); a.busy=false; renderChips(); continue; }
-    try{ if(R.sess&&R.sess.id){ const up=await window.dhAttach(R.sess.id,f); a.url=up.url; } }
-    catch(e){ console.warn("attach",e); toast(f.name+": não consegui guardar o arquivo, mas o conteúdo entra na análise"); }
+    a.uploadError=null;
+    for(let tent=0;tent<2&&!a.url;tent++){
+      try{ if(R.sess&&R.sess.id){ const up=await window.dhAttach(R.sess.id,f); a.url=up.url; } }
+      catch(e){ console.warn("attach",e); a.uploadError=String(e.message||e); }
+    }
+    if(!a.url) toast(f.name+": não consegui guardar o arquivo; o conteúdo entra na análise, mas ele não irá no zip nem no Drive");
     a.busy=false; renderChips();
   }
 }
@@ -1033,6 +1048,11 @@ function filesContext(list,label){
 function fileChips(list){
   if(!(list||[]).length) return null;
   return h("div",{class:"files"},...list.map(a=>h("span",null,h("span",{html:ICON.clip,style:"display:flex"}),a.name)));
+}
+function allSessionFiles(sess){
+  const out=[];
+  for(const a of (sess?.answers||[])){ for(const f of (a?.files||[]).concat(a?.followupFiles||[])){ if(f&&f.url) out.push({name:f.name,url:f.url,kind:f.kind,bytes:f.bytes}); } }
+  return out;
 }
 function scrollEnd(){ const b=document.querySelector(".respond .body"); if(b) requestAnimationFrame(()=>{ b.scrollTop=b.scrollHeight; }); }
 function appendTurn(t,save=true){
@@ -1169,37 +1189,78 @@ Escreva em português do Brasil, direto, sem elogios vazios.
 ## Formato de saída (apenas isto)
 {"nota": 7.8, "resumo": "2 a 4 frases sobre a qualidade geral e o que decide se segue ou não", "pontos_fortes": ["até 4 itens curtos"], "lacunas": ["até 5 itens curtos, o que falta para o time de produto agir"], "proximo_passo": "uma frase"}`;
 }
+const FINISH_STEPS=[
+  {key:"ai",label:"Consolidando a análise final"},
+  {key:"md",label:"Gerando o markdown e o pacote de anexos"},
+  {key:"drive",label:"Gravando na pasta do Google Drive"},
+  {key:"mail",label:"Enviando o e-mail para o time"},
+  {key:"chat",label:"Notificando no Google Chat"},
+];
+function renderFinishing(w){
+  const card=h("div",{class:"card accent finishing"},h("div",{class:"eyebrow"},"Concluindo"),h("h3",{style:"margin-top:6px"},"Fechando o formulário"),
+    h("div",{class:"progress"},h("i",{id:"finBar",style:"width:4%"})),
+    h("ol",{id:"finSteps"},...FINISH_STEPS.map(st=>h("li",{"data-key":st.key},h("span",{class:"dot"}),h("span",null,st.label),h("span",{class:"note"})))),
+    h("p",{class:"small muted",style:"margin:16px 0 0"},"Isso leva alguns segundos. Não feche a página."));
+  w.append(card); scrollEnd();
+  const total=FINISH_STEPS.length;
+  return {
+    set(key,state,note){
+      const li=card.querySelector(`li[data-key="${key}"]`); if(!li) return;
+      li.className=state; li.querySelector(".dot").textContent=state==="done"?"✓":state==="fail"?"!":"";
+      li.querySelector(".note").textContent=note||"";
+      const done=card.querySelectorAll("li.done,li.fail").length; const doing=card.querySelector("li.doing")?0.5:0;
+      const bar=card.querySelector("#finBar"); if(bar) bar.style.width=Math.min(100,Math.round(100*(done+doing)/total))+"%";
+    }
+  };
+}
 async function finish(){
   R.busy=true;
   const w=$("#rw");
   const comp=$("#composer"); if(comp) comp.remove();
-  const chat=$("#chat");
+  const ui=renderFinishing(w);
+
+  // 1. análise final
+  ui.set("ai","doing");
   if(S.sample && !R.sess.final){
-    const th=h("div",{class:"msg"},h("div",{class:"avatar"},h("img",{src:ASSETS.symbol,alt:""})),h("div",{class:"bubble"},h("span",{class:"thinking"},"Consolidando análise final e notificando o time ",h("i"),h("i"),h("i")))); chat?.append(th); scrollEnd();
     try{ const r=await S.sample.json(finalPrompt(),{modelTier:"default",cache:false}); if(r&&typeof r==="object"){ const nota=Math.max(0,Math.min(10,Number(r.nota))); R.sess.final={nota:isNaN(nota)?null:nota,resumo:String(r.resumo||""),pontos_fortes:Array.isArray(r.pontos_fortes)?r.pontos_fortes.map(String):[],lacunas:Array.isArray(r.lacunas)?r.lacunas.map(String):[],proximo_passo:String(r.proximo_passo||"")}; } }catch(e){ console.warn("final",e); }
-    th.remove();
   }
   const scores=R.sess.answers.map(a=>a.score).filter(x=>x!=null);
   R.sess.avgScore=scores.length?scores.reduce((a,b)=>a+b,0)/scores.length:null;
   if(!R.sess.final) R.sess.final={nota:R.sess.avgScore,resumo:S.sample?"Consolidação por IA indisponível; a nota geral é a média das notas individuais.":"Sem análise por IA nesta visualização; a nota geral é a média das notas individuais, quando existirem.",pontos_fortes:[],lacunas:[],proximo_passo:""};
   R.sess.status="concluido"; R.sess.finishedAt=new Date().toISOString();
   R.sess.markdown=buildMarkdown(R.set,R.sess);
-  let pub={};
-  try{ pub=await window.dhPublish({sessionId:R.sess.id,title:R.set.title,shortName:R.set.shortName||"",markdown:R.sess.markdown})||{}; }
-  catch(e){ console.warn("publish",e); R.sess.publishError=String(e.message||e); }
-  R.sess.folderUrl=pub.folderUrl||""; R.sess.bundleUrl=pub.bundleUrl||""; R.sess.mdUrl=pub.mdUrl||"";
-  if(pub.drive&&pub.drive.error) R.sess.driveError=pub.drive.error;
-  const envio={title:R.set.title,description:R.set.description||"",respondent:R.sess.respondent||"",email:R.sess.email||"",area:R.sess.area||"",
-    finishedAt:R.sess.finishedAt,score:R.sess.final?.nota??null,minScore:R.set.minScore??7,summary:R.sess.final?.resumo||"",
-    folderUrl:pub.folderUrl||"",mdUrl:pub.mdUrl||"",mdName:pub.mdName||"respostas.md",bundleUrl:pub.bundleUrl||"",bundleName:pub.bundleName||"anexos.zip",attachedZip:!!pub.bundleUrl};
-  try{ await window.dhSendMail(envio); R.sess.mailed=true; }
-  catch(e){ console.warn("mail",e); R.sess.mailed=false; R.sess.mailError=String(e.message||e); }
-  try{ await window.dhSendChat(envio); R.sess.chatSent=true; }
-  catch(e){ console.warn("chat",e); R.sess.chatSent=false; R.sess.chatError=String(e.message||e); }
+  ui.set("ai","done",R.sess.final?.nota!=null?"nota "+fmtNum(R.sess.final.nota,1):"");
+  await saveSess();
+
+  await publishAndNotify(R.set,R.sess,ui);
+
   await saveSess(); updateTop();
   try{ localStorage.removeItem("dh:sess:"+R.set.id); }catch(e){}
   w.innerHTML=""; renderDashboard(w,R.set,R.sess,{});
   R.busy=false;
+}
+/* Publica (Blob + Drive), envia e-mail e notifica o Chat. Atualiza o painel de progresso quando houver. */
+async function publishAndNotify(set,sess,ui){
+  const files=allSessionFiles(sess);
+  ui?.set("md","doing"); ui?.set("drive","doing");
+  let pub={};
+  try{ pub=await window.dhPublish({sessionId:sess.id,title:set.title,shortName:set.shortName||"",markdown:sess.markdown,files})||{}; sess.publishError=""; }
+  catch(e){ console.warn("publish",e); sess.publishError=String(e.message||e); }
+  sess.folderUrl=pub.folderUrl||""; sess.bundleUrl=pub.bundleUrl||""; sess.mdUrl=pub.mdUrl||"";
+  sess.driveError=(pub.drive&&pub.drive.error)||(sess.publishError?"publicação falhou: "+sess.publishError:"");
+  ui?.set("md",pub.mdUrl?"done":"fail",files.length?files.length+" anexo"+(files.length!==1?"s":""):"sem anexos");
+  ui?.set("drive",sess.folderUrl?"done":"fail",sess.folderUrl?"":"não gravado");
+  const envio={title:set.title,description:set.description||"",respondent:sess.respondent||"",email:sess.email||"",area:sess.area||"",
+    finishedAt:sess.finishedAt,score:sess.final?.nota??null,minScore:set.minScore??7,summary:sess.final?.resumo||"",
+    folderUrl:sess.folderUrl,mdUrl:sess.mdUrl,mdName:pub.mdName||"respostas.md",bundleUrl:sess.bundleUrl,bundleName:pub.bundleName||"anexos.zip",attachedZip:!!sess.bundleUrl};
+  ui?.set("mail","doing");
+  try{ await window.dhSendMail(envio); sess.mailed=true; sess.mailError=""; }
+  catch(e){ console.warn("mail",e); sess.mailed=false; sess.mailError=String(e.message||e); }
+  ui?.set("mail",sess.mailed?"done":"fail");
+  ui?.set("chat","doing");
+  try{ await window.dhSendChat(envio); sess.chatSent=true; sess.chatError=""; }
+  catch(e){ console.warn("chat",e); sess.chatSent=false; sess.chatError=String(e.message||e); }
+  ui?.set("chat",sess.chatSent?"done":"fail");
 }
 function buildMarkdown(set,sess){
   const mod=MODULES[set.module]?.name||"Discovery";
@@ -1244,28 +1305,17 @@ function renderDashboard(w,set,sess,opts){
   const acts=h("div",{class:"actions-bar"});
   if(!opts.readonly) acts.append(h("button",{class:"btn outline",onclick:()=>{ try{localStorage.removeItem("dh:sess:"+set.id);}catch(e){} R.sess=null; R.pending=[]; const wr=$("#rw"); wr.innerHTML=""; renderIntro(wr); }},"Nova resposta"));
   acts.append(h("button",{class:"btn secondary",disabled:!S.downloads,title:S.downloads?"Baixar o consolidado em markdown":"Download indisponível nesta visualização",onclick:async ev=>{ const b=ev.currentTarget; b.disabled=true; try{ await S.downloads.save({filename:fname,data:md}); toast("Respostas salvas"); }catch(e){ if(e.code!=="declined") toast("Não foi possível salvar ("+(e.code||"erro")+")"); } b.disabled=false; }},h("span",{html:ICON.download}),"Baixar respostas"));
-  acts.append(h("button",{class:"btn",title:"Enviar o consolidado para "+EMAIL_TO+" e para o Google Chat",onclick:async ev=>{ const b=ev.currentTarget; b.disabled=true;
-    const falhas=[]; let pub={};
-    try{ pub=await window.dhPublish({sessionId:sess.id,title:set.title,shortName:set.shortName||"",markdown:md})||{}; }catch(e){ falhas.push("publicação ("+(e.code||e.message||"erro")+")"); }
-    const envio={title:set.title,description:set.description||"",respondent:sess.respondent||"",email:sess.email||"",area:sess.area||"",
-      finishedAt:sess.finishedAt,score:sess.final?.nota??null,minScore:set.minScore??7,summary:sess.final?.resumo||"",
-      folderUrl:pub.folderUrl||sess.folderUrl||"",mdUrl:pub.mdUrl||sess.mdUrl||"",mdName:pub.mdName||"respostas.md",
-      bundleUrl:pub.bundleUrl||sess.bundleUrl||"",bundleName:pub.bundleName||"anexos.zip",attachedZip:!!(pub.bundleUrl||sess.bundleUrl)};
-    try{ await window.dhSendMail(envio); }catch(e){ falhas.push("e-mail ("+(e.code||e.message||"erro")+")"); }
-    try{ await window.dhSendChat(envio); }catch(e){ falhas.push("Google Chat ("+(e.code||e.message||"erro")+")"); }
-    if(falhas.length){ toast("Falha no envio: "+falhas.join(" e ")); b.disabled=false; } else toast("Respostas enviadas para "+EMAIL_TO+" e para o Google Chat");
-  }},h("span",{html:ICON.mail}),"Enviar respostas"));
   w.append(acts);
-  if(sess.status==="concluido"&&(sess.mailed!=null||sess.chatSent!=null)){
+  if(sess.status==="concluido"&&(sess.mailed!=null||sess.chatSent!=null||sess.driveError)){
     const st=[];
     if(sess.mailed===false) st.push("e-mail não enviado"+(sess.mailError?" ("+sess.mailError+")":""));
     if(sess.chatSent===false) st.push("Google Chat não enviado"+(sess.chatError?" ("+sess.chatError+")":""));
     if(sess.driveError) st.push("Drive: "+sess.driveError);
-    w.append(h("div",{class:"small",style:"text-align:right;margin-top:8px;color:"+(st.length?"var(--danger)":"var(--muted)")},
-      st.length?"Falha no envio automático: "+st.join(" · ")+". Use \u201cEnviar respostas\u201d para tentar de novo.":"Enviado para "+EMAIL_TO+" e para o Google Chat."));
-    if(sess.folderUrl) w.append(h("div",{class:"small",style:"text-align:right;margin-top:4px"},h("a",{href:sess.folderUrl,target:"_blank",rel:"noopener"},"Abrir a pasta no Google Drive")));
+    const line=h("div",{class:"small",style:"text-align:right;margin-top:8px;color:"+(st.length?"var(--danger)":"var(--muted)")},
+      st.length?"Falha no envio automático: "+st.join(" · ")+". ":"Enviado para "+EMAIL_TO+" e para o Google Chat.");
+    if(st.length&&!opts.readonly) line.append(h("a",{href:"#",onclick:async ev=>{ ev.preventDefault(); ev.target.textContent="Reenviando…"; await publishAndNotify(set,sess); if(R.sess===sess) await saveSess(); w.innerHTML=""; renderDashboard(w,set,sess,opts); }},"Tentar de novo"));
+    w.append(line);
   }
-  // abas
   const tabs=h("div",{class:"tabs",role:"tablist"});
   const panes={dash:h("div",{role:"tabpanel"}),detail:h("div",{role:"tabpanel",class:"hidden"})};
   const tbDash=h("button",{class:"active",role:"tab",onclick:()=>sel("dash")},"Dashboard");
