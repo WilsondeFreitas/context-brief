@@ -1244,8 +1244,6 @@ function renderDashboard(w,set,sess,opts){
   const acts=h("div",{class:"actions-bar"});
   if(!opts.readonly) acts.append(h("button",{class:"btn outline",onclick:()=>{ try{localStorage.removeItem("dh:sess:"+set.id);}catch(e){} R.sess=null; R.pending=[]; const wr=$("#rw"); wr.innerHTML=""; renderIntro(wr); }},"Nova resposta"));
   acts.append(h("button",{class:"btn secondary",disabled:!S.downloads,title:S.downloads?"Baixar o consolidado em markdown":"Download indisponível nesta visualização",onclick:async ev=>{ const b=ev.currentTarget; b.disabled=true; try{ await S.downloads.save({filename:fname,data:md}); toast("Respostas salvas"); }catch(e){ if(e.code!=="declined") toast("Não foi possível salvar ("+(e.code||"erro")+")"); } b.disabled=false; }},h("span",{html:ICON.download}),"Baixar respostas"));
-  const nFiles=(sess.answers||[]).reduce((n,a)=>n+((a?.files||[]).concat(a?.followupFiles||[]).filter(f=>f&&f.url).length),0);
-  if(nFiles) acts.append(h("button",{class:"btn secondary",title:"Baixar um zip com o markdown e os "+nFiles+" arquivo"+(nFiles!==1?"s":"")+" anexados",onclick:()=>{ const a=document.createElement("a"); a.href=window.dhBundleUrl(sess.id,set.title); a.download=""; document.body.append(a); a.click(); a.remove(); }},h("span",{html:ICON.download}),"Baixar anexos ("+nFiles+")"));
   acts.append(h("button",{class:"btn",title:"Enviar o consolidado para "+EMAIL_TO+" e para o Google Chat",onclick:async ev=>{ const b=ev.currentTarget; b.disabled=true;
     const falhas=[]; let pub={};
     try{ pub=await window.dhPublish({sessionId:sess.id,title:set.title,shortName:set.shortName||"",markdown:md})||{}; }catch(e){ falhas.push("publicação ("+(e.code||e.message||"erro")+")"); }
