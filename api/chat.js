@@ -46,9 +46,11 @@ async function send(text) {
 
 /* Menção: o n8n aceita {{mention:email}}; o webhook direto do Google não resolve e-mail,
    então vai o nome em texto. */
-const mentionLine = () => DIRECT
-  ? `Responsável: ${process.env.CHAT_MENTION_NAME || "Wilson Freitas"}`
-  : `Responsável: {{mention:${MENTION}}}`;
+const mentionLine = () => {
+  if (!DIRECT) return `Responsável: {{mention:${MENTION}}}`;
+  const id = (process.env.CHAT_MENTION_USER_ID || "").replace(/^users\//, "").trim();
+  return id ? `Responsável: <users/${id}>` : `Responsável: ${process.env.CHAT_MENTION_NAME || "Wilson Freitas"}`;
+};
 
 export default async function handler(req, res) {
   if (!DIRECT && !process.env.N8N_WEBHOOK_TOKEN) return json(res, 503, { error: "not_configured", detail: "defina CHAT_WEBHOOK_URL ou N8N_WEBHOOK_TOKEN" });

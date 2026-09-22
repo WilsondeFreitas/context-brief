@@ -1,7 +1,8 @@
 import { put, list, del } from "@vercel/blob";
 import { json } from "./_lib.js";
 
-const VARS = ["BLOB_READ_WRITE_TOKEN", "GEMINI_API_KEY", "GEMINI_MODEL", "ADMIN_PASSWORD", "MAIL_TO", "AGENTMAIL_INBOX", "AGENTMAIL_API_KEY"];
+const VARS = ["BLOB_READ_WRITE_TOKEN", "GEMINI_API_KEY", "GEMINI_MODEL", "ADMIN_PASSWORD", "MAIL_TO", "AGENTMAIL_INBOX", "AGENTMAIL_API_KEY",
+  "CHAT_WEBHOOK_URL", "GOOGLE_SERVICE_ACCOUNT_EMAIL", "GOOGLE_PRIVATE_KEY", "DRIVE_ROOT_FOLDER_ID"];
 
 export default async function handler(req, res) {
   const env = {};
@@ -13,6 +14,13 @@ export default async function handler(req, res) {
     blob: "skipped",
     gemini: process.env.GEMINI_MODEL || "gemini-2.5-flash",
     mail: process.env.MAIL_TO ? "configured" : "missing",
+    chat: process.env.CHAT_WEBHOOK_URL ? "google-webhook" : (process.env.N8N_WEBHOOK_TOKEN ? "n8n" : "missing"),
+    drive: {
+      serviceAccount: process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL || null,
+      rootFolder: process.env.DRIVE_ROOT_FOLDER_ID ? `https://drive.google.com/drive/folders/${process.env.DRIVE_ROOT_FOLDER_ID}` : null,
+      privateKey: process.env.GOOGLE_PRIVATE_KEY ? (process.env.GOOGLE_PRIVATE_KEY.includes("BEGIN PRIVATE KEY") ? "ok" : "formato inesperado") : "missing",
+      mentionUserId: process.env.CHAT_MENTION_USER_ID || null,
+    },
     commit: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) || null,
     env_name: process.env.VERCEL_ENV || null,
     time: new Date().toISOString(),
