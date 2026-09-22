@@ -233,6 +233,22 @@ table.data tr.click{cursor:pointer}table.data tr.click:hover td{background:var(-
 .composer .box{display:flex;gap:10px;align-items:flex-end;background:var(--card);border:1px solid var(--border-strong);border-radius:10px;padding:10px 10px 10px 16px;box-shadow:var(--shadow-md)}
 .composer textarea{flex:1;border:none;background:transparent;outline:none;padding:6px 0;min-height:24px;max-height:220px;resize:none;line-height:1.5}
 .composer .btn{padding:10px 14px}
+.composer .box .attach{flex:none;width:38px;height:38px;border-radius:8px;border:1px solid var(--border-strong);background:transparent;color:var(--accent);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background 120ms var(--ease),border-color 120ms var(--ease)}
+.composer .box .attach:hover{background:var(--card-soft);border-color:var(--tracao)}
+.composer .box .attach:focus-visible{outline:none;box-shadow:var(--focus)}
+.composer .box .attach svg{width:20px;height:20px;stroke:currentColor;stroke-width:2;fill:none;stroke-linecap:round}
+.composer input[type=file]{position:absolute;width:1px;height:1px;opacity:0}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+.chip{display:inline-flex;align-items:center;gap:8px;max-width:280px;padding:6px 10px;border:1px solid var(--border);border-radius:999px;background:var(--card);font-size:12px;box-shadow:var(--shadow-sm)}
+.chip .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--heading);font-weight:600}
+.chip .sz{color:var(--muted)}
+.chip button{background:none;border:none;color:var(--muted);cursor:pointer;padding:0;display:flex}
+.chip button:hover{color:var(--danger)}
+.chip img{width:24px;height:24px;border-radius:4px;object-fit:cover}
+.chip.busy{opacity:.6}
+.msg .files{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.msg .files span{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:999px;font-size:11px;background:rgba(255,255,255,.16)}
+.msg .bubble.eval .files span,.msg:not(.user) .files span{background:var(--n100);color:var(--n600)}
 .composer .foot{font-size:12px;color:var(--muted);margin-top:8px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
 
 /* dashboard */
@@ -350,11 +366,11 @@ table.data tr.click{cursor:pointer}table.data tr.click:hover td{background:var(-
   };
 
   const sample = {
-    async json(prompt) {
+    async json(prompt, opts) {
       const r = await jsonFetch("/api/ai", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ prompt, images: (opts && opts.images) || [] }),
       });
       return r.data;
     },
@@ -474,13 +490,15 @@ const ICON = {
   collapse:'<svg viewBox="0 0 24 24"><path d="m11 17-5-5 5-5"/><path d="m18 17-5-5 5-5"/></svg>',
   expand:'<svg viewBox="0 0 24 24"><path d="m6 17 5-5-5-5"/><path d="m13 17 5-5-5-5"/></svg>',
   upload:'<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></svg>',
+  attach:'<svg viewBox="0 0 24 24"><path d="M12 5v14"/><path d="M5 12h14"/></svg>',
+  clip:'<svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>',
   link:'<svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>'
 };
 const EMAIL_TO = "Produtech@nexenergy.com.br";
 const MAX_DOC_CHARS = 28000; // total de contexto documental enviado à IA por chamada
 
 const S = { db:null, user:null, sample:null, assets:null, downloads:null, canEdit:false, ready:false,
-            sets:[], sessions:{}, unsubSets:null, baseUrl:"", collapsed:(function(){try{return localStorage.getItem("dh:side")==="1";}catch(e){return false;}})(), module:"dfq", view:"list", editing:null, editDocs:[] };
+            sets:[], sessions:{}, unsubSets:null, collapsed:(function(){try{return localStorage.getItem("dh:side")==="1";}catch(e){return false;}})(), module:"dfq", view:"list", editing:null, editDocs:[] };
 
 const $ = (sel,el=document)=>el.querySelector(sel);
 const h = (tag, attrs, ...kids)=>{ attrs=attrs||{};
@@ -498,7 +516,7 @@ const esc = s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":
 const fmtDate = iso=>{ try{ return new Date(iso).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"}); }catch(e){return iso;} };
 const fmtNum = (n,d=1)=> n==null||isNaN(n) ? "–" : Number(n).toLocaleString("pt-BR",{minimumFractionDigits:d,maximumFractionDigits:d});
 const uid = ()=> Math.random().toString(36).slice(2,8)+Date.now().toString(36).slice(-4);
-const linkFor = id => (S.baseUrl||location.origin+location.pathname+location.search)+"#/r/"+id;
+const linkFor = id => location.origin+location.pathname+location.search+"#/r/"+id;
 let toastT; const toast = m=>{ const t=$("#toast"); t.textContent=m; t.classList.add("on"); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove("on"),2200); };
 
 // ---------- markdown helpers ----------
@@ -552,7 +570,6 @@ async function boot(){
       S.sets = snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
       if(route().kind==="admin") render();
     }, e=>{ console.warn("sets",e); });
-    db.doc("settings/app").get().then(sn=>{ if(sn.exists){ S.baseUrl=String(sn.data().baseUrl||""); if(route().kind==="admin") render(); } }).catch(()=>{});
   }
   render();
 }
@@ -585,7 +602,6 @@ function renderAdmin(root){
   if(!S.canEdit) return renderLanding(wrap);
   if(S.view==="edit") return renderEditor(wrap);
   if(S.view==="sessions") return renderSessions(wrap);
-  if(S.view==="settings") return renderSettings(wrap);
   renderList(wrap);
 }
 function renderSidebar(){
@@ -602,8 +618,6 @@ function renderSidebar(){
   nav.append(h("div",{class:"group"},"Acompanhamento"));
   nav.append(h("button",{class:S.view==="sessions"?"active":"",onclick:()=>{S.view="sessions";S.editing=null;render();}},
     h("span",{html:ICON.chart,title:"Respostas"}),h("span",{class:"lbl"},"Respostas")));
-  if(S.canEdit) nav.append(h("button",{class:S.view==="settings"?"active":"",onclick:()=>{S.view="settings";S.editing=null;render();}},
-    h("span",{html:ICON.link,title:"Link base"}),h("span",{class:"lbl"},"Link base")));
   side.append(nav);
   side.append(h("div",{class:"foot"}, h("div",null,h("b",null,"Análise por IA: "),S.sample?"Gemini":"indisponível"), h("div",{style:"margin-top:4px"},"Respostas enviadas para ",h("b",null,EMAIL_TO))));
   return side;
@@ -637,13 +651,6 @@ function renderLanding(wrap){
     list.append(h("div",{class:"item",onclick:()=>location.hash="#/r/"+s.id},h("div",null,h("div",{class:"eyebrow",style:"margin-bottom:4px"},MODULES[s.module]?.name||""),h("h4",null,s.title),h("div",{class:"meta"},h("span",null,q+" pergunta"+(q!==1?"s":"")),s.description?h("span",null,s.description):null)),h("div",{class:"actions"},h("button",{class:"btn sm"},"Responder"))));
   }
   wrap.append(list);
-}
-function renderSettings(wrap){
-  wrap.append(h("div",{class:"page-head"},h("div",null,h("div",{class:"eyebrow"},"Configuração"),h("h1",{style:"margin-top:6px"},"Link de compartilhamento"),h("p",null,"Os links de resposta são montados a partir da URL base abaixo. Cole aqui o link de compartilhamento deste artifact para que o botão \"Copiar link\" gere o endereço que a área de negócios vai abrir."))));
-  const inp=h("input",{class:"input",value:S.baseUrl,placeholder:"https://claude.ai/…"});
-  const card=h("div",{class:"card"},h("label",{class:"field"},h("span",null,"URL base"),inp,h("span",{class:"hint"},"Vazio usa a URL da própria página. Exemplo de link gerado: "+linkFor("abc123"))),
-    h("button",{class:"btn",onclick:async ev=>{ const b=ev.currentTarget; b.disabled=true; try{ S.baseUrl=inp.value.trim().replace(/#.*$/,""); await S.db.doc("settings/app").set({baseUrl:S.baseUrl,updatedAt:new Date().toISOString()}); toast("Salvo"); render(); }catch(e){ toast("Falha ao salvar"); b.disabled=false; } }},"Salvar"));
-  wrap.append(card);
 }
 function copyLink(id){ const l=linkFor(id); navigator.clipboard?.writeText(l).then(()=>toast("Link copiado")).catch(()=>prompt("Copie o link:",l)); }
 
@@ -712,6 +719,61 @@ function renderDocList(){
       d.assetId?h("a",{href:"/_blob/"+d.assetId,target:"_blank",class:"small"},"abrir"):null,
       h("button",{title:"Remover",html:ICON.x,onclick:()=>{S.editDocs=S.editDocs.filter(x=>x!==d);renderDocList();}})));
   }
+}
+const LIBS={};
+function loadScript(key,src,check){
+  if(LIBS[key]) return LIBS[key];
+  LIBS[key]=new Promise((res,rej)=>{ const sc=document.createElement("script"); sc.src=src;
+    sc.onload=()=>{ const v=check(); v?res(v):rej(new Error("biblioteca não carregou")); };
+    sc.onerror=()=>rej(new Error("não foi possível carregar "+key)); document.head.append(sc); });
+  return LIBS[key];
+}
+const loadMammoth=()=>loadScript("mammoth","https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js",()=>window.mammoth);
+const loadXlsx=()=>loadScript("xlsx","https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js",()=>window.XLSX);
+const MAX_FILE_BYTES=12*1024*1024;
+const MAX_FILE_CHARS=40000;
+const MAX_ANSWER_FILES=6;
+function fileKind(f){
+  const n=(f.name||"").toLowerCase(), t=f.type||"";
+  if(t.startsWith("image/")||/\.(png|jpe?g|gif|webp|bmp|heic)$/.test(n)) return "image";
+  if(t==="application/pdf"||n.endsWith(".pdf")) return "pdf";
+  if(/\.(docx|doc)$/.test(n)||t.includes("wordprocessingml")) return "docx";
+  if(/\.(xlsx|xlsm|xls)$/.test(n)||t.includes("spreadsheetml")||t.includes("ms-excel")) return "xlsx";
+  if(/\.(csv|tsv)$/.test(n)||t==="text/csv") return "csv";
+  return "text";
+}
+const fmtBytes=b=> b>=1048576 ? (b/1048576).toFixed(1).replace(".",",")+" MB" : Math.max(1,Math.round(b/1024))+" KB";
+async function shrinkImage(file){
+  const url=URL.createObjectURL(file);
+  try{
+    const img=await new Promise((res,rej)=>{ const im=new Image(); im.onload=()=>res(im); im.onerror=()=>rej(new Error("imagem inválida")); im.src=url; });
+    const max=1400; const sc=Math.min(1,max/Math.max(img.naturalWidth,img.naturalHeight));
+    const cv=document.createElement("canvas"); cv.width=Math.round(img.naturalWidth*sc); cv.height=Math.round(img.naturalHeight*sc);
+    cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height);
+    const data=cv.toDataURL("image/jpeg",0.82);
+    return {mimeType:"image/jpeg",data:data.split(",")[1],preview:data};
+  } finally { URL.revokeObjectURL(url); }
+}
+async function readAttachment(file){
+  const kind=fileKind(file);
+  const att={name:file.name,kind,bytes:file.size,text:"",image:null,preview:null};
+  if(kind==="image"){ const im=await shrinkImage(file); att.image={mimeType:im.mimeType,data:im.data}; att.preview=im.preview; return att; }
+  if(kind==="pdf"){
+    const pdfjs=await loadPdfJs(); const pdf=await pdfjs.getDocument({data:await file.arrayBuffer()}).promise; const out=[];
+    for(let i=1;i<=pdf.numPages;i++){ const pg=await pdf.getPage(i); const tc=await pg.getTextContent(); out.push(tc.items.map(it=>it.str).join(" ")); if(out.join("").length>MAX_FILE_CHARS) break; }
+    att.text=out.join("\n\n").replace(/[ \t]+/g," ").trim();
+  } else if(kind==="docx"){
+    const mm=await loadMammoth(); const r=await mm.extractRawText({arrayBuffer:await file.arrayBuffer()}); att.text=String(r.value||"").trim();
+  } else if(kind==="xlsx"){
+    const X=await loadXlsx(); const wb=X.read(await file.arrayBuffer(),{type:"array"}); const out=[];
+    for(const name of wb.SheetNames){ out.push("## "+name+"\n"+X.utils.sheet_to_csv(wb.Sheets[name])); if(out.join("").length>MAX_FILE_CHARS) break; }
+    att.text=out.join("\n\n").trim();
+  } else {
+    att.text=(await file.text()).trim();
+  }
+  att.text=att.text.slice(0,MAX_FILE_CHARS);
+  if(!att.text) throw new Error("não consegui extrair texto deste arquivo");
+  return att;
 }
 let pdfjsP=null;
 function loadPdfJs(){
@@ -818,7 +880,7 @@ function renderSessionView(root,setId,sid){
 }
 
 // ---------- RESPOND ----------
-const R = { set:null, docs:[], sess:null, busy:false, ctl:null };
+const R = { set:null, docs:[], sess:null, busy:false, ctl:null, pending:[] };
 function renderRespond(root,id){
   const page=h("div",{class:"respond"}); root.append(page);
   page.append(h("div",{class:"center"},h("span",{class:"spinner"})));
@@ -859,7 +921,7 @@ function renderIntro(w){
   const name=h("input",{class:"input",placeholder:"Seu nome e área (ex.: Ana — Comercial)"});
   const card=h("div",{class:"card accent",style:"max-width:640px"},
     h("div",{class:"eyebrow"},"Antes de começar"),h("h2",{style:"margin-top:8px"},"Como funciona"),h("div",{class:"rule sm"}),
-    h("p",null,"As perguntas aparecem uma a uma, em formato de conversa. A cada resposta, a IA avalia a clareza e a completude e pode pedir um complemento. Ao final você recebe um resumo com a nota das respostas e pode baixar o consolidado em markdown."),
+    h("p",null,"As perguntas aparecem uma a uma, em formato de conversa. Você pode anexar arquivos a qualquer resposta pelo botão + : PDF, markdown, txt, csv, Word, Excel e imagens entram na análise. A cada resposta, a IA avalia a clareza e a completude e pode pedir um complemento. Ao final você recebe um resumo com a nota das respostas e pode baixar o consolidado em markdown."),
     set.context?h("div",{class:"callout",style:"margin:16px 0",html:mdToHtml(set.context)}):null,
     R.docs.length?h("p",{class:"small muted"},"Documentos de apoio considerados pela IA: "+R.docs.map(d=>d.name).join(", ")):null,
     h("label",{class:"field",style:"margin-top:20px"},h("span",null,"Quem responde"),name),
@@ -885,16 +947,57 @@ function renderChat(w){
   if(!(R.sess.turns||[]).length) askCurrent();
   const ta=h("textarea",{placeholder:"Escreva sua resposta…",rows:1,onkeydown:ev=>{ if(ev.key==="Enter"&&!ev.shiftKey&&!ev.altKey){ ev.preventDefault(); submit(); } },oninput:()=>{ta.style.height="auto";ta.style.height=Math.min(220,ta.scrollHeight)+"px";}});
   const send=h("button",{class:"btn",title:"Enviar",onclick:()=>submit(),html:ICON.send});
-  const comp=h("div",{class:"composer",id:"composer"},h("div",{class:"box"},ta,send),h("div",{class:"foot"},h("span",null,"Enter envia · Shift+Enter quebra linha"),h("span",{id:"aiState"},S.sample?"Análise: Gemini":"Sem análise por IA")));
+  const inp=h("input",{type:"file",multiple:true,accept:".pdf,.md,.markdown,.txt,.csv,.tsv,.docx,.xlsx,.xlsm,.xls,image/*",onchange:ev=>{ addAttachments(ev.target.files); ev.target.value=""; }});
+  const attach=h("button",{class:"attach",type:"button",title:"Anexar arquivos (PDF, markdown, txt, csv, Word, Excel, imagens)","aria-label":"Anexar arquivos",html:ICON.attach,onclick:()=>inp.click()});
+  const chips=h("div",{class:"chips hidden",id:"chips"});
+  const comp=h("div",{class:"composer",id:"composer"},chips,h("div",{class:"box"},attach,ta,send,inp),h("div",{class:"foot"},h("span",null,"Enter envia · Shift+Enter quebra linha · + anexa arquivos"),h("span",{id:"aiState"},S.sample?"Análise: Gemini":"Sem análise por IA")));
   w.append(comp); ta.focus();
-  const submit=()=>{ const v=ta.value.trim(); if(!v||R.busy) return; ta.value=""; ta.style.height="auto"; handleAnswer(v); };
+  ["dragenter","dragover"].forEach(t=>comp.addEventListener(t,ev=>{ev.preventDefault();comp.classList.add("over");}));
+  ["dragleave","dragend"].forEach(t=>comp.addEventListener(t,()=>comp.classList.remove("over")));
+  comp.addEventListener("drop",ev=>{ ev.preventDefault(); comp.classList.remove("over"); addAttachments(ev.dataTransfer?.files); });
+  ta.addEventListener("paste",ev=>{ const fs=[...(ev.clipboardData?.files||[])]; if(fs.length){ ev.preventDefault(); addAttachments(fs); } });
+  renderChips();
+  const submit=()=>{ const v=ta.value.trim(); if((!v&&!R.pending.length)||R.busy) return;
+    if(R.pending.some(a=>a.busy)) return toast("Aguarde a leitura dos anexos");
+    ta.value=""; ta.style.height="auto"; handleAnswer(v||"(resposta enviada como anexo)"); };
   scrollEnd();
+}
+function renderChips(){
+  const el=$("#chips"); if(!el) return;
+  el.innerHTML=""; el.classList.toggle("hidden",!R.pending.length);
+  for(const a of R.pending){
+    el.append(h("div",{class:"chip"+(a.busy?" busy":"")},
+      a.preview?h("img",{src:a.preview,alt:""}):h("span",{html:ICON.clip,style:"color:var(--accent);display:flex"}),
+      h("span",{class:"nm"},a.name),
+      h("span",{class:"sz"},a.busy?"lendo…":(a.error?a.error:(a.kind==="image"?"imagem":fmtBytes(a.bytes)))),
+      h("button",{title:"Remover",html:ICON.x,onclick:()=>{R.pending=R.pending.filter(x=>x!==a);renderChips();}})));
+  }
+}
+async function addAttachments(files){
+  for(const f of Array.from(files||[])){
+    if(R.pending.length>=MAX_ANSWER_FILES){ toast("Máximo de "+MAX_ANSWER_FILES+" arquivos por resposta"); break; }
+    if(f.size>MAX_FILE_BYTES){ toast(f.name+": acima de 12 MB"); continue; }
+    const a={name:f.name,kind:fileKind(f),bytes:f.size,text:"",image:null,preview:null,busy:true,error:null};
+    R.pending.push(a); renderChips();
+    try{ Object.assign(a,await readAttachment(f)); }
+    catch(e){ a.error=String(e.message||e); toast(f.name+": "+a.error); R.pending=R.pending.filter(x=>x!==a); }
+    a.busy=false; renderChips();
+  }
+}
+function filesContext(list,label){
+  const items=(list||[]).filter(a=>a.text);
+  if(!items.length) return "";
+  return `## ${label}\n`+items.map(a=>`### ${a.name}\n${a.text}`).join("\n\n");
+}
+function fileChips(list){
+  if(!(list||[]).length) return null;
+  return h("div",{class:"files"},...list.map(a=>h("span",null,h("span",{html:ICON.clip,style:"display:flex"}),a.name)));
 }
 function scrollEnd(){ const b=document.querySelector(".respond .body"); if(b) requestAnimationFrame(()=>{ b.scrollTop=b.scrollHeight; }); }
 function appendTurn(t,save=true){
   const chat=$("#chat"); if(!chat) return;
   let el;
-  if(t.role==="user"){ el=h("div",{class:"msg user"},h("div",{class:"avatar"},(R.sess.respondent||"?").trim().slice(0,1).toUpperCase()||"?"),h("div",{class:"bubble"},t.text)); }
+  if(t.role==="user"){ el=h("div",{class:"msg user"},h("div",{class:"avatar"},(R.sess.respondent||"?").trim().slice(0,1).toUpperCase()||"?"),h("div",{class:"bubble"},t.text,fileChips(t.files))); }
   else if(t.kind==="question"){
     const q=R.set.questions[t.qIndex];
     el=h("div",{class:"msg"},h("div",{class:"avatar"},h("img",{src:ASSETS.symbol,alt:""})),h("div",{class:"bubble"},
@@ -922,15 +1025,29 @@ function docsContext(){
   for(const d of R.docs){ if(budget<=0) break; const t=(d.text||"").slice(0,Math.min(budget,Math.ceil(MAX_DOC_CHARS/Math.max(1,R.docs.length))*1.5)); budget-=t.length; if(t) parts.push(`### ${d.name}\n${t}`); }
   return parts.join("\n\n");
 }
-function evalPrompt(q,answer,prev){
-  const set=R.set;
+function historyContext(upto){
+  const prev=(R.sess.answers||[]).slice(0,upto).filter(a=>a&&a.answer);
+  if(!prev.length) return "";
+  return prev.map((a,i)=>{
+    const files=(a.files||[]).concat(a.followupFiles||[]);
+    const ft=(a.filesText||"").slice(0,4000);
+    const fx=files.length?`\n[anexos: ${files.map(f=>f.name).join(", ")}]${a.filesSummary?"\n[o que os anexos mostram: "+a.filesSummary+"]":""}${ft?"\n[trecho dos anexos]\n"+ft:""}`:"";
+    return `${i+1}. ${a.question}\n→ ${a.answer}${a.followupA?"\n→ (complemento) "+a.followupA:""}${fx}`;
+  }).join("\n");
+}
+function evalPrompt(q,answer,prev,files){
+  const set=R.set; const hist=historyContext(R.sess.current);
+  const hasFiles=(files||[]).length>0;
   return [
 `Você é um analista de produto sênior avaliando a resposta de uma pessoa da área de negócios a uma pergunta de discovery. Responda SOMENTE com JSON.`,
 `## Tema\n${set.title}\n${set.description||""}`,
 set.context?`## Contexto fornecido pelo autor das perguntas\n${set.context}`:"",
 R.docs.length?`## Documentos de apoio (trechos)\n${docsContext()}`:"",
+hist?`## Respostas anteriores desta mesma pessoa (use para checar coerência; não reavalie)\n${hist}`:"",
 `## Pergunta ${q.section?`(seção: ${q.section})`:""}\n${q.text}${q.note?"\n"+q.note:""}`,
 prev?`## Primeira resposta\n${prev.answer}\n\n## Pergunta complementar feita\n${prev.followupQ}\n\n## Complemento respondido\n${answer}`:`## Resposta\n${answer}`,
+hasFiles?filesContext(files,"Arquivos anexados junto com esta resposta"):"",
+hasFiles&&files.some(f=>f.kind==="image")?`As imagens anexadas a esta resposta seguem junto nesta mensagem. Leia o que elas mostram e use como parte da resposta.`:"",
 `## Critérios
 - Concretude: dados, exemplos, nomes, números, prazos.
 - Completude: cobre o que a pergunta pede, sem desviar.
@@ -938,30 +1055,36 @@ prev?`## Primeira resposta\n${prev.answer}\n\n## Pergunta complementar feita\n${
 - Decidibilidade: um PM conseguiria agir com essa resposta?
 Nota de 0 a 10 (decimal permitido). 9–10 excelente; 7–8,9 boa; 5–6,9 parcial; abaixo de 5 insuficiente ou evasiva.
 ${prev?"Esta é a avaliação final da pergunta: não peça novo complemento (pergunta_complementar deve ser null e aceita true).":"Se a resposta for vaga, incompleta ou não responder ao que foi perguntado (nota abaixo de 7), formule UMA pergunta complementar curta e objetiva e marque aceita=false. Caso contrário aceita=true e pergunta_complementar=null."}
+${hasFiles?"Os anexos fazem parte da resposta: considere o conteúdo deles ao avaliar concretude e completude, e diga na avaliação o que eles acrescentaram ou não.":""}
 Escreva a avaliação em português do Brasil, em até 3 frases, direta, sem elogios vazios. Aponte o que falta ou o que ficou forte.`,
 `## Formato de saída (apenas isto)
-{"nota": 7.5, "avaliacao": "texto curto", "aceita": true, "pergunta_complementar": null}`
+{"nota": 7.5, "avaliacao": "texto curto", "aceita": true, "pergunta_complementar": null${hasFiles?', "anexos_resumo": "1 a 2 frases sobre o que os anexos mostram, para uso nas próximas perguntas"':""}}`
   ].filter(Boolean).join("\n\n");
 }
 async function handleAnswer(text){
   if(R.busy) return; R.busy=true;
   const i=R.sess.current; const q=R.set.questions[i];
-  appendTurn({role:"user",text});
-  let ans=R.sess.answers[i]; if(!ans){ ans={qid:q.id,question:q.text,section:q.section||"",answer:"",followupQ:null,followupA:null,score:null,feedback:""}; R.sess.answers[i]=ans; }
+  const files=R.pending.filter(a=>!a.busy&&!a.error); R.pending=[]; renderChips();
+  const meta=files.map(a=>({name:a.name,kind:a.kind,bytes:a.bytes,chars:(a.text||"").length}));
+  appendTurn({role:"user",text,files:meta});
+  let ans=R.sess.answers[i]; if(!ans){ ans={qid:q.id,question:q.text,section:q.section||"",answer:"",followupQ:null,followupA:null,score:null,feedback:"",files:[],followupFiles:[],filesText:"",filesSummary:""}; R.sess.answers[i]=ans; }
   const isFollow=!!R.sess.followup;
-  if(isFollow) ans.followupA=text; else ans.answer=text;
+  if(isFollow){ ans.followupA=text; ans.followupFiles=meta; } else { ans.answer=text; ans.files=meta; }
+  if(files.some(a=>a.text)) ans.filesText=((ans.filesText||"")+"\n\n"+filesContext(files,"Anexos")).trim().slice(0,60000);
   const state=$("#aiState");
   let result=null;
   if(S.sample){
     const chat=$("#chat"); const th=h("div",{class:"msg"},h("div",{class:"avatar"},h("img",{src:ASSETS.symbol,alt:""})),h("div",{class:"bubble"},h("span",{class:"thinking"},"Analisando ",h("i"),h("i"),h("i")))); chat.append(th); scrollEnd();
     try{
-      result=await S.sample.json(evalPrompt(q,text,isFollow?ans:null),{modelTier:"default",cache:false});
+      const images=files.filter(a=>a.image).map(a=>a.image).slice(0,4);
+      result=await S.sample.json(evalPrompt(q,text,isFollow?ans:null,files),{modelTier:"default",cache:false,images});
     }catch(e){ console.warn("sample",e); if(state) state.textContent = e.code==="not_granted"?"Análise por IA não autorizada nesta visualização":"Falha na análise por IA ("+(e.code||"erro")+")"; }
     th.remove();
   }
   if(result && typeof result==="object"){
     const nota=Math.max(0,Math.min(10,Number(result.nota)));
     ans.score=isNaN(nota)?null:nota; ans.feedback=String(result.avaliacao||"");
+    if(result.anexos_resumo) ans.filesSummary=String(result.anexos_resumo).slice(0,600);
     const wantFollow=!isFollow && result.aceita===false && result.pergunta_complementar && String(result.pergunta_complementar).trim();
     if(wantFollow){
       ans.followupQ=String(result.pergunta_complementar).trim(); R.sess.followup=true;
@@ -983,7 +1106,11 @@ async function handleAnswer(text){
   askCurrent();
 }
 function finalPrompt(){
-  const set=R.set; const lines=R.sess.answers.map((a,i)=>`### ${i+1}. ${a.question}\nResposta: ${a.answer}${a.followupQ?`\nComplemento pedido: ${a.followupQ}\nComplemento: ${a.followupA||"(não respondido)"}`:""}\nNota individual: ${a.score??"n/d"}\nAvaliação: ${a.feedback||""}`).join("\n\n");
+  const set=R.set; const lines=R.sess.answers.map((a,i)=>{
+    const files=(a.files||[]).concat(a.followupFiles||[]);
+    const fx=files.length?`\nAnexos: ${files.map(f=>f.name).join(", ")}${a.filesSummary?" — "+a.filesSummary:""}`:"";
+    return `### ${i+1}. ${a.question}\nResposta: ${a.answer}${a.followupQ?`\nComplemento pedido: ${a.followupQ}\nComplemento: ${a.followupA||"(não respondido)"}`:""}${fx}\nNota individual: ${a.score??"n/d"}\nAvaliação: ${a.feedback||""}`;
+  }).join("\n\n");
   return `Você é um analista de produto sênior consolidando um ${MODULES[set.module]?.name||"discovery"} respondido pela área de negócios. Responda SOMENTE com JSON.
 
 ## Tema
@@ -1037,6 +1164,8 @@ function buildMarkdown(set,sess){
     if(a.section&&a.section!==sec){ sec=a.section; L.push(`### ${sec}`,``); }
     L.push(`**${i+1}. ${a.question}**`,``,a.answer||"_(sem resposta)_",``);
     if(a.followupQ){ L.push(`_Complemento solicitado:_ ${a.followupQ}`,``,a.followupA||"_(não respondido)_",``); }
+    const _f=(a.files||[]).concat(a.followupFiles||[]);
+    if(_f.length){ L.push(`_Anexos:_ ${_f.map(f=>f.name).join(", ")}`,``); if(a.filesSummary) L.push(`_O que os anexos mostram:_ ${a.filesSummary}`,``); }
     L.push(`- Nota: ${a.score!=null?fmtNum(a.score,1):"n/d"} / 10`);
     if(a.feedback) L.push(`- Avaliação: ${a.feedback}`);
     L.push(``);
@@ -1061,7 +1190,7 @@ function renderDashboard(w,set,sess,opts){
   const slug=t=>String(t||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^a-z0-9]+/g,"-").replace(/(^-|-$)/g,"");
   const fname=(slug(set.title)||"respostas")+"-"+(slug(sess.respondent)||"resposta")+".md";
   const acts=h("div",{class:"actions-bar"});
-  if(!opts.readonly) acts.append(h("button",{class:"btn outline",onclick:()=>{ try{localStorage.removeItem("dh:sess:"+set.id);}catch(e){} R.sess=null; const wr=$("#rw"); wr.innerHTML=""; renderIntro(wr); }},"Nova resposta"));
+  if(!opts.readonly) acts.append(h("button",{class:"btn outline",onclick:()=>{ try{localStorage.removeItem("dh:sess:"+set.id);}catch(e){} R.sess=null; R.pending=[]; const wr=$("#rw"); wr.innerHTML=""; renderIntro(wr); }},"Nova resposta"));
   acts.append(h("button",{class:"btn secondary",disabled:!S.downloads,title:S.downloads?"Baixar o consolidado em markdown":"Download indisponível nesta visualização",onclick:async ev=>{ const b=ev.currentTarget; b.disabled=true; try{ await S.downloads.save({filename:fname,data:md}); toast("Respostas salvas"); }catch(e){ if(e.code!=="declined") toast("Não foi possível salvar ("+(e.code||"erro")+")"); } b.disabled=false; }},h("span",{html:ICON.download}),"Baixar respostas"));
   acts.append(h("button",{class:"btn",title:"Enviar o consolidado para "+EMAIL_TO,onclick:async ev=>{ const b=ev.currentTarget; b.disabled=true; try{ await window.dhSendMail({subject:set.title+" — "+(sess.respondent||"resposta"),markdown:md}); toast("Respostas enviadas para "+EMAIL_TO); }catch(e){ toast("Falha no envio ("+(e.code||e.message||"erro")+")"); b.disabled=false; } }},h("span",{html:ICON.mail}),"Enviar respostas"));
   w.append(acts);
@@ -1099,6 +1228,7 @@ function renderDashboard(w,set,sess,opts){
     list.append(h("div",{class:"qa"},h("div",{class:"q"},h("span",null,(i+1)+". "+a.question),a.score!=null?h("span",{class:"score",style:"flex:none"},fmtNum(a.score,1),h("small",null,"/10")):null),
       h("div",{class:"a"},a.answer||"—"),
       a.followupQ?h("div",{class:"a",style:"margin-top:4px"},h("span",{class:"small muted"},"Complemento: "+a.followupQ),"\n",a.followupA||"—"):null,
+      (a.files||[]).concat(a.followupFiles||[]).length?h("div",{class:"small muted",style:"margin-top:6px"},"Anexos: "+(a.files||[]).concat(a.followupFiles||[]).map(f=>f.name).join(", ")+(a.filesSummary?" — "+a.filesSummary:"")):null,
       a.feedback?h("div",{class:"f"},a.feedback):null));
   });
   if(!answers.length) list.append(h("div",{class:"muted small"},"Nenhuma resposta registrada."));
