@@ -9,8 +9,19 @@ export default async function handler(req, res) {
   if (!key) return json(res, 503, { error: "not_granted", detail: "GEMINI_API_KEY ausente" });
 
   const model = (process.env.GEMINI_MODEL || DEFAULT_MODEL).replace(/^models\//, "");
-  const { prompt } = await readBody(req);
+  const { prompt, images } = await readBody(req);
   if (typeof prompt !== "string" || !prompt.trim()) return json(res, 400, { error: "bad_prompt" });
+
+  const parts = [{ text: prompt }];
+  if (Array.isArray(images)) {
+    for (const im of images.slice(0, 4)) {
+      const mimeType = String(im?.mimeType || "");
+      const data = String(im?.data || "");
+      if (!/^image\/(jpeg|png|webp|gif)$/.test(mimeType) || !data) continue;
+      if (data.length > 7_000_000) continue; // ~5 MB por imagem
+      parts.push({ inlineData: { mimeType, data } });
+    }
+  }
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
 
@@ -19,7 +30,7 @@ export default async function handler(req, res) {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-goog-api-key": key },
       body: JSON.stringify({
-        contents: [{ role: "user", parts: [{ text: prompt }] }],
+        contents: [{ role: "user", parts }],
         generationConfig: { temperature: 0.2, responseMimeType: "application/json" },
       }),
     });
