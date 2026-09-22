@@ -65,8 +65,11 @@ export async function ensureFolder(name) {
     `'${ROOT_ID}' in parents`,
     "trashed = false",
   ].join(" and ");
+  // Raiz pode ser um Drive compartilhado (ID começa com 0A): a listagem então exige corpora=drive.
+  const isSharedDriveRoot = /^0A/.test(ROOT_ID);
+  const scope = isSharedDriveRoot ? `&corpora=drive&driveId=${encodeURIComponent(ROOT_ID)}` : "";
   const found = await api(
-    `/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&pageSize=5&supportsAllDrives=true&includeItemsFromAllDrives=true`
+    `/drive/v3/files?q=${encodeURIComponent(q)}&fields=files(id,name)&pageSize=5&supportsAllDrives=true&includeItemsFromAllDrives=true${scope}`
   );
   if (found.files?.length) return found.files[0].id;
   const made = await api(`/drive/v3/files?fields=id&supportsAllDrives=true`, {
