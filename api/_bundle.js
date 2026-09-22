@@ -32,10 +32,10 @@ export const bundleName = (sess, title) =>
   safeName(`${title || "respostas"}-${sess?.respondent || "resposta"}`, "respostas").toLowerCase();
 
 /** Monta o zip com o markdown e todos os anexos da sessão. */
-export async function buildBundle(sess, { markdown, title } = {}) {
+export async function buildBundle(sess, { markdown, title, files: given } = {}) {
   const md = markdown || sess?.markdown || "";
   const entries = [{ name: "respostas.md", data: Buffer.from(md, "utf8") }];
-  const files = sessionFiles(sess);
+  const files = Array.isArray(given) && given.length ? given : sessionFiles(sess);
   const skipped = [];
   let total = Buffer.byteLength(md);
   const used = new Set(["respostas.md"]);
